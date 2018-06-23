@@ -1,0 +1,30 @@
+#!/bin/sh
+
+set -u
+set -e
+
+file_base_name='Processing Incoming Segments (RFC 793 Section 3.9 SEGMENT ARRIVES)'
+
+# -V pagestyle=headings \
+pandoc \
+	"$file_base_name".md \
+	--output "$file_base_name".pdf \
+	--standalone \
+	--pdf-engine=xelatex \
+	-V lang=en-GB \
+	-V dir=ltr \
+	--table-of-contents \
+	--number-sections \
+	-V lot \
+	-V documentclass="report" \
+	-V geometry:margin=1.5cm \
+	-V papersize=a4 \
+	-V fontsize=12pt \
+	-V mainfont="Helvetica" \
+	-V monofont="Bitstream Vera Sans Mono" \
+	-V monofontoptions="Letters=SmallCaps" \
+	-V colorlinks \
+	-V links-as-notes \
+	-V secnumdepth=3 \
+&& \
+open "$file_base_name".pdf

@@ -1,0 +1,82 @@
+# This file is part of tcp-engine. It is subject to the license terms in the COPYRIGHT file found in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT. No part of tcp-engine, including this file, may be copied, modified, propagated, or distributed except according to the terms contained in the COPYRIGHT file.
+# Copyright © 2018 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
+
+
+[package]
+name = "tcp-engine"
+description = "tcp-engine"
+keywords = ["tcp-engine"]
+license = "AGPL-3.0"
+authors = ["Raphael Cohn <raphael.cohn@stormmq.com>"]
+documentation = "https://github.com/lemonrock/tcp-engine/blob/master/README.md"
+homepage = "https://github.com/lemonrock/tcp-engine"
+repository = "https://github.com/lemonrock/tcp-engine.git"
+exclude = ["*"]
+include = ["README.md", "LICENSE", "COPYRIGHT", "src/**/*.rs", "Cargo.toml", "rustfmt.toml", "clippy.toml"]
+readme = "README.md"
+publish = false
+version = "0.0.0"
+
+[profile.release]
+opt-level = 3
+debug = false
+rpath = false
+lto = true
+debug-assertions = false
+codegen-units = 1
+
+[dependencies]
+arrayvec = "0.4"
+bitflags = "^1.0"
+hyper-thread-random = "^0.4"
+libc = "^0.2"
+memoffset = "^0.2"
+num-traits = "^0.2"
+sha2 = { version = "^0.7", features = ["asm"] }
+siphasher = "^0.2"
+time = "^0.1"
+
+[features]
+default = ["drop-urgent-pointer-field-non-zero", "drop-options-padding-non-zero", "drop-options-known-fixed-length-invalid", "server-drop-source-port-0"]
+
+# Validates the urgent pointer field is zero unless the URG (Urgent) flag is set.
+#
+# Enabled by default.
+#
+# Can be omitted to improve performance (and hence DoS attempts) very very slightly at the risk of making it heuristically more likely to accept attempted TCP attacks.
+drop-urgent-pointer-field-non-zero = []
+
+# Validates that the padding at the end of TCP options is zero (empty).
+#
+# Enabled by default.
+#
+# Can be omitted to improve performance (and hence DoS attempts) very slightly at the risk of making it heuristically more likely to accept attempted TCP attacks.
+drop-options-padding-non-zero = []
+
+# Validates that the length of known options with a fixed length is correct.
+#
+# Enabled by default.
+#
+# Can be omitted to improve performance (and hence DoS attempts) very very slightly at the risk of making it heuristically more likely to accept attempted TCP attacks.
+drop-options-known-fixed-length-invalid = []
+
+# Validates that source port can not be zero; a zero source port is very rare.
+#
+# Enabled by default.
+#
+# Can be omitted to improve performance (and hence DoS attempts) very very slightly at the risk of making it heuristically more likely to accept attempted TCP attacks.
+server-drop-source-port-0 = []
+
+# Validates that source port is not one of the reserved ports.
+#
+# Disabled by default.
+#
+# Most TCP traffic should not be using these ports, but some might be; enabling this may break some clients.
+server-drop-source-ports-1-1023 = []
+
+# Validates that source port is not one of the experimental ports in RFC 4727 (1021 and 1022).
+#
+# Disabled by default.
+#
+# Most TCP traffic should not be using these ports, but some might be; enabling this may break some clients.
+server-drop-source-ports-experimental-rfc4727 = []

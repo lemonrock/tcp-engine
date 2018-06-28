@@ -9,6 +9,10 @@ pub trait ContiguousPacket: Copy
 	#[inline(always)]
 	fn source_internet_protocol_address<Address: InternetProtocolAddress>(self) -> &Address;
 	
+	/// Obtains the source Internet Protocol (IP) version 4 or version 6 address.
+	#[inline(always)]
+	fn destination_internet_protocol_address<Address: InternetProtocolAddress>(self) -> &Address;
+	
 	/// Override this to make use of the explanation, for example, by putting it into a circular ring buffer for debugging purposes.
 	#[inline(always)]
 	fn drop_packet(self, _explanation: &'static str)

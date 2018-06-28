@@ -7,7 +7,7 @@ use super::*;
 
 include!("macros.drop.rs");
 include!("macros.invalid.rs");
-include!("macros.parse_options.rs");
+include!("TcpOptions.parse_options.rs");
 
 
 include!("Authentication.rs");

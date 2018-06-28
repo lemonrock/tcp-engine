@@ -14,10 +14,10 @@ pub(crate) struct TransmissionControlBlockReceive
 	/// Thus, the local TCP considers that segments overlapping the range RCV.NXT to RCV.NXT + RCV.WND - 1 carry acceptable data or control.
 	/// Segments containing sequence numbers entirely outside of this range are considered duplicates and discarded".
 	///
-	/// As of RFC 1323, Section 2, page 10, this is now the value left-shifted by `Rcv.Wind.Scale` bits.
+	/// As of RFC 1323, Section 2, page 10, this is now the value left-shifted by `Rcv.Wind.Shift` bits.
 	pub(crate) WND: WindowSize,
 	
-	/// RFC 1323, Section 2, page 10: "The connection state is augmented by two window shift counts, Snd.Wind.Scale and Rcv.Wind.Scale, to be applied to the incoming and outgoing window fields, respectively."
+	/// RFC 1323, Section 2, page 10: "The connection state is augmented by two window shift counts, Snd.Wind.Shift and Rcv.Wind.Shift, to be applied to the incoming and outgoing window fields, respectively."
 	pub(crate) Wind: Wind,
 	
 	

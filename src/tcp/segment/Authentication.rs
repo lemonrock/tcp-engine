@@ -12,10 +12,20 @@ pub(crate) enum Authentication
 	},
 	
 	/// The default scheme is HMAC-SHA1-96, known at IANA as `SHA1`.
-	Rfc5926Authentication
+	Rfc5925Authentication
 	{
+		/// Identifies the Master Key Tuple (MKT).
+		///
+		/// Value can be different for send and receive; each is in a separate 'namespace'.
+		///
+		/// We look up the master key tuple, then find the 'traffic' key for this direction.
 		key_id: u8,
+		
+		/// The Master Key Tuple (MKT) that is ready at the sender to be used to authenticate received segments.
+		///
+		/// In other words, the key to use to to authenticate outgoing packets.
 		r_next_key_id: u8,
+		
 		// TCP Headers are 20 to 60 bytes long => 40 bytes of options.
 		// This option takes 1 byte kind, 1 byte length, 1 byte key id and 1 byte r next key id, giving a maximum message_authentication_code of 36 bytes.
 		message_authentication_code_length: u8,

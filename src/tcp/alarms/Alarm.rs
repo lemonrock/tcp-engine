@@ -12,6 +12,10 @@ pub(crate) struct Alarm<AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstra
 	previous: *mut Alarm<AB, TCBA>,
 	
 	compressed_ring_slot_index: u16,
+	
+	// The number of ticks this alarm goes off in after it is expired by the AlarmWheel.
+	// Only required for alarms that exceed 512 ticks (c. 65 seconds with a 128ms tick size).
+	compressed_remainder: u16,
 
 	alarm_behaviour: AB,
 }
@@ -26,6 +30,7 @@ impl<AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstractions> Default for
 			next: unsafe { uninitialized() },
 			previous: unsafe { uninitialized() },
 			compressed_ring_slot_index: Self::RingSlotIndexForUnscheduledAlarm,
+			compressed_reschedule_slot_indices: 0,
 			alarm_behaviour: AB::default(),
 		}
 	}
@@ -65,6 +70,21 @@ impl<AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstractions> Alarm<AB, T
 	}
 	
 	#[inline(always)]
+	pub(crate) fn set_remainder(&mut self, remainder: TickDuration)
+	{
+		let remainder: u64 = remainder.into();
+		
+		self.compressed_remainder = if remainder > (::std::u16::MAX as u64)
+		{
+			::std::u16::MAX
+		}
+		else
+		{
+			remainder as u16
+		};
+	}
+	
+	#[inline(always)]
 	pub(crate) fn schedule(&mut self, alarms: &Alarms<TCBA>, goes_off_in_ticks: TickDuration)
 	{
 		let alarm_wheel = AB::alarm_wheel(alarms);
@@ -73,15 +93,21 @@ impl<AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstractions> Alarm<AB, T
 	}
 	
 	#[inline(always)]
-	pub(crate) fn expired(&mut self, interface: &Interface<TCBA>)
+	pub(crate) fn expired(&mut self, interface: &Interface<TCBA>, now: Tick)
 	{
+		if self.compressed_remainder != 0
+		{
+			self.schedule(interface.alarms(), TickDuration::new(self.compressed_remainder as u64));
+			return
+		}
+		
 		self.reset();
 		
 		let transmission_control_block = self.transmission_control_block_mutable_reference();
-		let reschedule_goes_off_in_ticks = AB::process_alarm(transmission_control_block, interface);
+		let reschedule_goes_off_in_ticks = AB::process_alarm(transmission_control_block, interface, now);
 		if let Some(reschedule_goes_off_in_ticks) = reschedule_goes_off_in_ticks
 		{
-			self.schedule(interface, reschedule_goes_off_in_ticks)
+			self.schedule(interface.alarms(), reschedule_goes_off_in_ticks)
 		}
 	}
 	

@@ -2,10 +2,10 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
-/// Name from RFC 1323, Section 2.
+/// Name from RFC 7323.
 #[derive(Debug)]
 pub(crate) struct Wind
 {
-	/// Name from RFC 1323, Section 2.
-	Scale: WindowScaleOption,
+	/// Name from RFC 7323.
+	Shift: WindowScaleOption,
 }

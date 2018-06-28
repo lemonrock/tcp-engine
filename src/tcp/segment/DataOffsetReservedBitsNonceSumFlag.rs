@@ -8,6 +8,15 @@
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub(crate) struct DataOffsetReservedBitsNonceSumFlag(u8);
 
+impl Into<u8> for DataOffsetReservedBitsNonceSumFlag
+{
+	#[inline(always)]
+	fn into(self) -> u8
+	{
+		self.0
+	}
+}
+
 impl DataOffsetReservedBitsNonceSumFlag
 {
 	const DataLengthBitMask: u8 = 0b1111_0000;

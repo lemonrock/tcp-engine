@@ -51,7 +51,7 @@ impl Shl<Wind> for SegmentWindowSize
 	
 	fn shl(self, rhs: Wind) -> Self::Output
 	{
-		self << rhs.Scale
+		self << rhs.Shift
 	}
 }
 

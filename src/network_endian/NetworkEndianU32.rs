@@ -36,13 +36,15 @@ impl NetworkEndian for NetworkEndianU32
 
 impl InternetProtocolAddress for NetworkEndianU32
 {
-	const MinimumPathMaximumTransmissionUnitSize: u16 = 88;
+	const MinimumPathMaximumTransmissionUnitSize: u16 = 68;
 	
-	const DefaultPathMaximumTransmissionUnitSize: u16 = 576;
+	#[cfg(feature = "rfc-4821-minimum-ipv4-path-mtu")] const DefaultPathMaximumTransmissionUnitSize: u16 = 1024;
+	#[cfg(not(feature = "rfc-4821-minimum-ipv4-path-mtu"))] const DefaultPathMaximumTransmissionUnitSize: u16 = 576;
 	
-	const MinimumTcpMaximumSegmentSizeOption: MaximumSegmentSizeOption = MaximumSegmentSizeOption::InternetProtocolVersion4Default;
+	#[cfg(feature = "increase-ipv4-mss-acceptable-minimum-to-1024")] const SmallestAcceptableMaximumSegmentSizeOption: MaximumSegmentSizeOption = MaximumSegmentSizeOption::InternetProtocolVersion4MinimumAsPerRfc4821;
+	#[cfg(not(feature = "increase-ipv6-mss-acceptable-minimum-to-1024"))] const SmallestAcceptableMaximumSegmentSizeOption: MaximumSegmentSizeOption = MaximumSegmentSizeOption::InternetProtocolVersion4Minimum;
 	
-	const DefaultTcpMaximumSegmentSizeOption: MaximumSegmentSizeOption = MaximumSegmentSizeOption::InternetProtocolVersion4Default;
+	const DefaultMaximumSegmentSizeOptionIfNoneSpecified: MaximumSegmentSizeOption = Self::SmallestAcceptableMaximumSegmentSizeOption;
 	
 	const SmallestLayer3HeaderSize: u16 = 20;
 	
@@ -86,7 +88,7 @@ impl InternetProtocolAddress for NetworkEndianU32
 		//	// Values in the range 537 - 1299 inclusive account for < 1∙5% of observations.
 		//	1300,
 		//
-		//	// Values in the range 1300 - 1349 inclsuvie account for between 15% to 20% of observations.
+		//	// Values in the range 1300 - 1349 inclusive account for between 15% to 20% of observations.
 		//	// Most of these values are probably due to the use of PPPoE.
 		//	1440,
 		//
@@ -105,6 +107,20 @@ impl InternetProtocolAddress for NetworkEndianU32
 	fn write_to_hash<H: Hasher>(&self, hasher: &mut H)
 	{
 		hasher.write_u32(unsafe { transmute_copy(&self.0) })
+	}
+	
+	type PseudoHeader = InternetProtocolVersion4PseudoHeader;
+	
+	#[inline(always)]
+	fn pseudo_header(source_internet_protocol_address: &Self, destination_internet_protocol_address: &Self, layer_4_protocol_number: u8, layer_4_packet_size: usize) -> Self::PseudoHeader
+	{
+		Self::PseudoHeader::new(source_internet_protocol_address, destination_internet_protocol_address, layer_4_protocol_number, layer_4_packet_size as u16)
+	}
+	
+	#[inline(always)]
+	fn secure_hash(digester: &mut impl Md5Digest, source_internet_protocol_address: &Self, destination_internet_protocol_address: &Self, layer_4_protocol_number: u8, layer_4_packet_size: usize)
+	{
+		Self::PseudoHeader::secure_hash(digester, source_internet_protocol_address, destination_internet_protocol_address, layer_4_protocol_number, layer_4_packet_size as u16)
 	}
 }
 

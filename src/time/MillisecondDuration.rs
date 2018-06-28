@@ -166,6 +166,13 @@ impl MillisecondDuration
 		self.0 == Self::Zero.0
 	}
 	
+	/// Is not zero.
+	#[inline(always)]
+	pub fn is_not_zero(self) -> bool
+	{
+		self.0 != Self::Zero.0
+	}
+	
 	/// As seconds, rounded down.
 	#[inline(always)]
 	pub fn seconds_rounded_down(self) -> u64

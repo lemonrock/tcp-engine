@@ -40,9 +40,10 @@ impl InternetProtocolAddress for NetworkEndianU128
 	
 	const DefaultPathMaximumTransmissionUnitSize: u16 = Self::MinimumPathMaximumTransmissionUnitSize;
 	
-	const MinimumTcpMaximumSegmentSizeOption: MaximumSegmentSizeOption = MaximumSegmentSizeOption::InternetProtocolVersion4Minimum;
+	#[cfg(feature = "increase-ipv6-mss-acceptable-minimum-to-1220")] const SmallestAcceptableMaximumSegmentSizeOption: MaximumSegmentSizeOption = MaximumSegmentSizeOption::InternetProtocolVersion6Minimum;
+	#[cfg(not(feature = "increase-ipv6-mss-acceptable-minimum-to-1220"))] const SmallestAcceptableMaximumSegmentSizeOption: MaximumSegmentSizeOption = MaximumSegmentSizeOption::Default;
 	
-	const DefaultTcpMaximumSegmentSizeOption: MaximumSegmentSizeOption = MaximumSegmentSizeOption::InternetProtocolVersion6Default;
+	const DefaultMaximumSegmentSizeOptionIfNoneSpecified: MaximumSegmentSizeOption = Self::SmallestAcceptableMaximumSegmentSizeOption;
 	
 	const SmallestLayer3HeaderSize: u16 = 40;
 	
@@ -77,6 +78,20 @@ impl InternetProtocolAddress for NetworkEndianU128
 	fn write_to_hash<H: Hasher>(&self, hasher: &mut H)
 	{
 		hasher.write_u128(unsafe { transmute_copy(&self.0) })
+	}
+	
+	type PseudoHeader = InternetProtocolVersion6PseudoHeader;
+	
+	#[inline(always)]
+	fn pseudo_header(source_internet_protocol_address: &Self, destination_internet_protocol_address: &Self, layer_4_protocol_number: u8, layer_4_packet_size: usize) -> Self::PseudoHeader
+	{
+		Self::PseudoHeader::new(source_internet_protocol_address, destination_internet_protocol_address, layer_4_protocol_number, layer_4_packet_size as u32)
+	}
+	
+	#[inline(always)]
+	fn secure_hash(digester: &mut impl Md5Digest, source_internet_protocol_address: &Self, destination_internet_protocol_address: &Self, layer_4_protocol_number: u8, layer_4_packet_size: usize)
+	{
+		Self::PseudoHeader::secure_hash(digester, source_internet_protocol_address, destination_internet_protocol_address, layer_4_protocol_number, layer_4_packet_size as u32)
 	}
 }
 

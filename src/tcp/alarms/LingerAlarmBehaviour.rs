@@ -8,7 +8,7 @@ pub(crate) struct LingerAlarmBehaviour<TCBA: TransmissionControlBlockAbstraction
 impl<TCBA: TransmissionControlBlockAbstractions> AlarmBehaviour for LingerAlarmBehaviour<TCBA>
 {
 	#[inline(always)]
-	fn process_alarm<TCBA: TransmissionControlBlockAbstractions>(transmission_control_block: &mut TransmissionControlBlock<TCBA>, interface: &Interface<TCBA>) -> Option<TickDuration>
+	fn process_alarm<TCBA: TransmissionControlBlockAbstractions>(transmission_control_block: &mut TransmissionControlBlock<TCBA>, interface: &Interface<TCBA>, now: Tick) -> Option<TickDuration>
 	{
 		if transmission_control_block.is_state_before_closing_or_time_wait()
 		{
@@ -16,7 +16,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> AlarmBehaviour for LingerAlarmB
 			interface.send_reset_without_packet_to_reuse(transmission_control_block, SND.NXT);
 		}
 		
-		transmission_control_block.close(interface);
+		transmission_control_block.close(interface, now.to_milliseconds());
 		
 		None
 	}

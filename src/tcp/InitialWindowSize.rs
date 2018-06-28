@@ -14,5 +14,5 @@ impl InitialWindowSize
 	
 	const TrueWindow: WindowSize = WindowSize::new(65_535);
 	
-	const Scale: WindowScaleOption = WindowScaleOption::BufferSizeOf256Kb;
+	const Shift: WindowScaleOption = WindowScaleOption::BufferSizeOf256Kb;
 }

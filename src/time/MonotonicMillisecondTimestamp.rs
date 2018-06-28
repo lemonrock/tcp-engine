@@ -26,6 +26,17 @@ impl Into<u32> for MonotonicMillisecondTimestamp
 	}
 }
 
+impl Add<MillisecondDuration> for MonotonicMillisecondTimestamp
+{
+	type Output = Self;
+	
+	#[inline(always)]
+	fn add(self, rhs: MillisecondDuration) -> Self::Output
+	{
+		MonotonicMillisecondTimestamp(self.0 + rhs.0)
+	}
+}
+
 impl Sub for MonotonicMillisecondTimestamp
 {
 	type Output = MillisecondDuration;

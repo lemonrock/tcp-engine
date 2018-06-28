@@ -45,7 +45,7 @@ impl<AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstractions> AlarmList<A
 	}
 	
 	#[inline(always)]
-	pub(crate) fn expired(&self, interface: &Interface<TCBA>)
+	pub(crate) fn expired(&self, interface: &Interface<TCBA>, now: Tick)
 	{
 		let mut expired_alarm_pointer = self.head();
 		
@@ -54,7 +54,7 @@ impl<AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstractions> AlarmList<A
 		
 		while expired_alarm_pointer.is_not_null()
 		{
-			expired_alarm_pointer.dereference_unchecked().expired(interface);
+			expired_alarm_pointer.dereference_unchecked().expired(interface, now);
 			
 			expired_alarm_pointer = expired_alarm.next()
 		}

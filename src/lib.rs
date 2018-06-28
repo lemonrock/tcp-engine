@@ -6,10 +6,11 @@
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
 #![deny(missing_docs)]
+#![feature(asm)]
 #![feature(const_fn)]
 #![feature(core_intrinsics)]
-#![feature(asm)]
 #![feature(int_to_from_bytes)]
+#![feature(untagged_unions)]
 
 
 //! # tcp-engine
@@ -21,17 +22,24 @@ extern crate arrayvec;
 extern crate hyper_thread_random;
 extern crate libc;
 #[macro_use] extern crate memoffset;
+extern crate md5;
 extern crate num_traits;
 extern crate sha2;
 extern crate siphasher;
 #[cfg(not(all(unix, not(any(target_os = "macos", target_os = "ios")))))] extern crate time;
 
 
+use self::collections::*;
+use self::collections::least_recently_used_cache::*;
 use self::check_sums::*;
 use self::network_endian::*;
 use self::packets::*;
 use self::ports::*;
+use self::pseudo_headers::*;
 use self::time::*;
+
+
+pub(crate) mod collections;
 
 
 /// Check sums.
@@ -42,6 +50,10 @@ pub(crate) mod network_endian;
 
 
 pub(crate) mod ports;
+
+
+/// Pseudo-headers.
+pub mod pseudo_headers;
 
 
 /// Transmission Control Protocol (TCP).
@@ -55,7 +67,9 @@ pub mod time;
 use ::arrayvec::ArrayVec;
 use ::hyper_thread_random::generate_hyper_thread_safe_random_u32;
 use ::hyper_thread_random::generate_hyper_thread_safe_random_u64;
-use ::sha2::Digest;
+use ::md5::Digest as Md5Digest;
+use ::md5::Md5;
+use ::sha2::Digest as Sha2Digest;
 use ::sha2::Sha256;
 use ::siphasher::sip::SipHasher24;
 use ::std::cell::Cell;
@@ -64,6 +78,7 @@ use ::std::cell::RefCell;
 use ::std::cell::RefMut;
 use ::std::collections::BTreeMap;
 use ::std::collections::HashMap;
+use ::std::cmp::Eq;
 use ::std::cmp::max;
 use ::std::cmp::min;
 use ::std::cmp::Ord;
@@ -75,8 +90,11 @@ use ::std::fmt::Debug;
 use ::std::fmt::Formatter;
 use ::std::fs::read;
 use ::std::hash::BuildHasher;
+use ::std::hash::Hash;
 use ::std::hash::Hasher;
 use ::std::marker::PhantomData;
+use ::std::mem::align_of;
+use ::std::mem::ManuallyDrop;
 use ::std::mem::size_of;
 use ::std::mem::transmute;
 use ::std::mem::transmute_copy;
@@ -94,6 +112,7 @@ use ::std::ops::SubAssign;
 use ::std::ptr::NonNull;
 use ::std::ptr::null;
 use ::std::ptr::null_mut;
+use ::std::slice::from_raw_parts;
 use ::std::thread::sleep;
 use ::std::time::Duration;
 

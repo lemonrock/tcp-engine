@@ -8,6 +8,15 @@
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub(crate) enum State
 {
+	/// RFC 793, Page 22: "Represents no connection state at all."
+	///
+	/// Called `CLOSED` in RFC 793.
+	///
+	/// Logically occurs both before all other states and after all other states.
+	///
+	/// Pseudo-state; never actually used.
+	Closed,
+	
 	/// RFC 793, Page 21: "Represents waiting for a connection request from any remote TCP and port."
 	///
 	/// Called `LISTEN` in RFC 793.
@@ -61,16 +70,9 @@ pub(crate) enum State
 	/// RFC 793, Page 22: "Represents waiting for enough time to pass to be sure the remote TCP received the acknowledgment of its connection termination request."
 	///
 	/// Called `TIME-WAIT` in RFC 793.
+	///
+	/// Used to collect the 'garbage' of stray and duplicate segments for the recently closed connection arriving late (traditionaly,for 2 x MSL, ie 4 minutes). If a segment arrives which is a legitimate new connection attempt, then we should cut short the wait.
 	TimeWait,
-	
-	/// RFC 793, Page 22: "Represents no connection state at all."
-	///
-	/// Called `CLOSED` in RFC 793.
-	///
-	/// Logically occurs both before all other states and after all other states.
-	///
-	/// Pseudo-state; never actually used.
-	Closed,
 }
 
 impl Default for State
@@ -90,10 +92,20 @@ impl State
 		self == State::Established
 	}
 	
+	/// RFC 793 page 32.
 	#[inline(always)]
-	pub(crate) fn is_after_exchange_of_synchronized(&self) -> bool
+	pub(crate) fn is_non_synchronized(&self) -> bool
 	{
-		self.is_after(State::SynchronizeReceived)
+		use self::State::*;
+		
+		self == SynchronizeSent || self == SynchronizeReceived
+	}
+	
+	/// RFC 793 page 32.
+	#[inline(always)]
+	pub(crate) fn is_synchronized(&self) -> bool
+	{
+		self >= State::Established
 	}
 	
 	#[inline(always)]

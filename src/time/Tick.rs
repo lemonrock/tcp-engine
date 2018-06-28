@@ -102,6 +102,13 @@ impl Tick
 		Tick(ticks_rounded_up)
 	}
 	
+	
+	#[inline(always)]
+	pub fn to_milliseconds(self) -> MillisecondDuration
+	{
+		MillisecondDuration(self.0 * MillisecondsPerTick)
+	}
+	
 	#[inline(always)]
 	pub fn is_zero(self) -> bool
 	{

@@ -59,6 +59,19 @@ impl TcpSegment
 	}
 	
 	#[inline(always)]
+	pub(crate) fn secure_hash_fixed_header(&self, hasher: &mut impl Md5Digest)
+	{
+		self.tcp_fixed_header.secure_hash(hasher)
+	}
+	
+	#[inline(always)]
+	pub(crate) fn secure_hash_payload_data(&self, hasher: &mut impl Md5Digest, padded_options_size: usize, payload_size: usize)
+	{
+		let pointer = self.payload_data_pointer(padded_options_size).as_ptr() as *const u8;
+		hasher.input(unsafe { from_raw_parts(pointer, payload_size) })
+	}
+	
+	#[inline(always)]
 	pub(crate) fn exclusive_end_sequence_number(&self, payload_length: usize) -> WrappingSequenceNumber
 	{
 		self.SEQ() + payload_length
@@ -109,9 +122,9 @@ impl TcpSegment
 	}
 	
 	#[inline(always)]
-	pub(crate) fn payload_data_pointer(&self, options_length: usize) -> NonNull<u8>
+	pub(crate) fn payload_data_pointer(&self, padded_options_size: usize) -> NonNull<u8>
 	{
-		unsafe { NonNull::new_unchecked(((&self.tcp_options_and_payload as *const PhantomData<u8> as *const u8 as usize) + options_length) as *mut u8) }
+		unsafe { NonNull::new_unchecked(((&self.tcp_options_and_payload as *const PhantomData<u8> as *const u8 as usize) + padded_options_size) as *mut u8) }
 	}
 	
 	#[inline(always)]
@@ -154,6 +167,18 @@ impl TcpSegment
 	pub(crate) fn write_timestamps_option(options_data_pointer: usize, timestamps_option: TimestampsOption) -> usize
 	{
 		Self::write_option(options_data_pointer, TimestampsOption::Kind, TimestampsOption::KnownLength, timestamps_option)
+	}
+	
+	#[inline(always)]
+	pub(crate) const fn reserve_space_for_md5_option(options_data_pointer: usize) -> usize
+	{
+		options_data_pointer + AuthenticationOption::Md5SignatureOptionKnownLength
+	}
+	
+	#[inline(always)]
+	pub(crate) fn write_md5_option(options_data_pointer: usize, digest: [u8; 16]) -> usize
+	{
+		Self::write_option(options_data_pointer, AuthenticationOption::Md5SignatureOptionKind, AuthenticationOption::Md5SignatureOptionKnownLength, digest)
 	}
 	
 	#[inline(always)]

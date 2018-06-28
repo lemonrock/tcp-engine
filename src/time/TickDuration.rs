@@ -16,6 +16,15 @@ impl Mul<u64> for TickDuration
 	}
 }
 
+impl Into<u64> for TickDuration
+{
+	#[inline(always)]
+	fn into(self) -> u64
+	{
+		self.0
+	}
+}
+
 impl TickDuration
 {
 	pub const Zero: Self = TickDuration(0);

@@ -35,6 +35,28 @@ impl TcpFixedHeader
 	}
 	
 	#[inline(always)]
+	pub(crate) fn secure_hash(&self, hasher: &mut impl Md5Digest)
+	{
+		digester.input(self.source_port_destination_port.source_port().bytes());
+		digester.input(self.source_port_destination_port.destination_port().bytes());
+		digester.input(self.sequence_number.bytes());
+		digester.input(self.acknowledgment_sequence_number.bytes());
+		digester.input(&[self.data_offset_reserved_bits_nonce_sum_flag.into()]);
+		digester.input(&[self.flags.bits()]);
+		digester.input(self.window_size.bytes());
+		digester.input(NetworkEndianU16::Zero.bytes());
+		digester.input(self.urgent_pointer_if_URG_flag_set.bytes());
+	}
+	
+	#[inline(always)]
+	pub(crate) fn use_for_md5_signature(&self) -> Self
+	{
+		let mut clone = self.clone();
+		clone.checksum = NetworkEndianU16::Zero;
+		clone
+	}
+	
+	#[inline(always)]
 	pub(crate) const fn u8_size_excluding_options() -> u8
 	{
 		size_of::<Self>() as u8

@@ -55,10 +55,6 @@ impl Rfc1071CompliantCheckSum
 {
 	const Zero: Self = Rfc1071CompliantCheckSum(0);
 	
-	const TcpLayer4ProtocolNumber: u8 = 6;
-
-	const UdpLayer4ProtocolNumber: u8 = 17;
-	
 	#[inline(always)]
 	pub(crate) fn validates(self) -> bool
 	{
@@ -74,79 +70,45 @@ impl Rfc1071CompliantCheckSum
 	#[inline(always)]
 	pub(crate) fn internet_protocol_version_4_tcp_check_sum(source_internet_protocol_version_4_address: &NetworkEndianU32, destination_internet_protocol_version_4_address: &NetworkEndianU32, internet_packet_payload_pointer: NonNull<u8>, layer_4_packet_size: usize) -> Self
 	{
-		Self::internet_protocol_version_4_layer_4_check_sum(source_internet_protocol_version_4_address, destination_internet_protocol_version_4_address, internet_packet_payload_pointer, layer_4_packet_size, Self::TcpLayer4ProtocolNumber)
+		Self::internet_protocol_version_4_layer_4_check_sum(source_internet_protocol_version_4_address, destination_internet_protocol_version_4_address, internet_packet_payload_pointer, layer_4_packet_size, TcpLayer4ProtocolNumber)
 	}
 
 	#[inline(always)]
 	pub(crate) fn internet_protocol_version_4_layer_4_check_sum(source_internet_protocol_version_4_address: &NetworkEndianU32, destination_internet_protocol_version_4_address: &NetworkEndianU32, internet_packet_payload_pointer: NonNull<u8>, layer_4_packet_size: usize, layer_4_protocol_number: u8) -> Self
 	{
-		let sum = Self::internet_protocol_version_4_pseudo_header_check_sum_partial(source_internet_protocol_version_4_address, destination_internet_protocol_version_4_address, layer_4_packet_size as u16, layer_4_protocol_number);
+		let sum = Self::internet_protocol_version_4_pseudo_header_check_sum_partial(source_internet_protocol_version_4_address, destination_internet_protocol_version_4_address, layer_4_packet_size, layer_4_protocol_number);
 		let sum = Self::from_data_check_sum_partial(internet_packet_payload_pointer, layer_4_packet_size, sum);
 		Self::finalize(sum)
 	}
 	
 	#[inline(always)]
-	fn internet_protocol_version_4_pseudo_header_check_sum_partial(source_internet_protocol_version_4_address: &NetworkEndianU32, destination_internet_protocol_version_4_address: &NetworkEndianU32, layer_4_packet_size: u16, layer_4_protocol_number: u8) -> u32
+	fn internet_protocol_version_4_pseudo_header_check_sum_partial(source_internet_protocol_version_4_address: &NetworkEndianU32, destination_internet_protocol_version_4_address: &NetworkEndianU32, layer_4_packet_size: usize, layer_4_protocol_number: u8) -> u32
 	{
-		#[repr(C, packed)]
-		struct InternetProtocolVersion4PseudoHeader
-		{
-			source_internet_protocol_version_4_address: NetworkEndianU32,
-			destination_internet_protocol_version_4_address: NetworkEndianU32,
-			reserved: u8,
-			layer_4_protocol_number: u8,
-			layer_4_packet_size: NetworkEndianU16,
-		}
+		let pseudo_header = NetworkEndianU32::psuedo_header(source_internet_protocol_version_4_address, destination_internet_protocol_version_4_address, layer_4_protocol_number, layer_4_packet_size);
 		
-		let internet_protocol_version_4_pseudo_header = InternetProtocolVersion4PseudoHeader
-		{
-			source_internet_protocol_version_4_address: *source_internet_protocol_version_4_address,
-			destination_internet_protocol_version_4_address: *destination_internet_protocol_version_4_address,
-			reserved: 0,
-			layer_4_protocol_number,
-			layer_4_packet_size: NetworkEndianU16::from_native_endian(layer_4_packet_size),
-		};
-		
-		Self::from_struct_check_sum_partial(&internet_protocol_version_4_pseudo_header, 0)
+		Self::from_struct_check_sum_partial(&pseudo_header, 0)
 	}
 	
 	#[inline(always)]
 	pub(crate) fn internet_protocol_version_6_tcp_check_sum(source_internet_protocol_version_6_address: &NetworkEndianU128, destination_internet_protocol_version_6_address: &NetworkEndianU128, internet_packet_payload_pointer: NonNull<u8>, layer_4_packet_size: usize) -> Self
 	{
-		Self::internet_protocol_version_6_layer_4_check_sum(source_internet_protocol_version_6_address, destination_internet_protocol_version_6_address, internet_packet_payload_pointer, layer_4_packet_size, Self::TcpLayer4ProtocolNumber)
+		Self::internet_protocol_version_6_layer_4_check_sum(source_internet_protocol_version_6_address, destination_internet_protocol_version_6_address, internet_packet_payload_pointer, layer_4_packet_size, TcpLayer4ProtocolNumber)
 	}
 	
 	#[inline(always)]
 	pub(crate) fn internet_protocol_version_6_layer_4_check_sum(source_internet_protocol_version_6_address: &NetworkEndianU128, destination_internet_protocol_version_6_address: &NetworkEndianU128, internet_packet_payload_pointer: NonNull<u8>, layer_4_packet_size: usize, layer_4_protocol_number: u8) -> Self
 	{
-		let sum = Self::internet_protocol_version_6_pseudo_header_check_sum_partial(source_internet_protocol_version_6_address, destination_internet_protocol_version_6_address, layer_4_packet_size as u32, layer_4_protocol_number);
+		let sum = Self::internet_protocol_version_6_pseudo_header_check_sum_partial(source_internet_protocol_version_6_address, destination_internet_protocol_version_6_address, layer_4_packet_size, layer_4_protocol_number);
 		let sum = Self::from_data_check_sum_partial(internet_packet_payload_pointer, layer_4_packet_size, sum);
 		Self::finalize(sum)
 	}
 	
 	#[inline(always)]
-	fn internet_protocol_version_6_pseudo_header_check_sum_partial(source_internet_protocol_version_6_address: &NetworkEndianU128, destination_internet_protocol_version_6_address: &NetworkEndianU128, layer_4_packet_size: u32, layer_4_protocol_number: u8) -> u32
+	fn internet_protocol_version_6_pseudo_header_check_sum_partial(source_internet_protocol_version_6_address: &NetworkEndianU128, destination_internet_protocol_version_6_address: &NetworkEndianU128, layer_4_packet_size: usize, layer_4_protocol_number: u8) -> u32
 	{
-		#[repr(C, packed)]
-		struct InternetProtocolVersion6PseudoHeader
-		{
-			source_internet_protocol_version_6_address: NetworkEndianU128,
-			destination_internet_protocol_version_6_address: NetworkEndianU128,
-			layer_4_packet_size: NetworkEndianU32,
-			reserved: [u8; 3],
-			layer_4_protocol_number: u8,
-		}
+		let pseudo_header = NetworkEndianU128::psuedo_header(source_internet_protocol_version_6_address, destination_internet_protocol_version_6_address, layer_4_protocol_number, layer_4_packet_size);
 		
-		let internet_protocol_version_6_pseudo_header = InternetProtocolVersion6PseudoHeader
-		{
-			source_internet_protocol_version_6_address: *source_internet_protocol_version_6_address,
-			destination_internet_protocol_version_6_address: *destination_internet_protocol_version_6_address,
-			layer_4_packet_size: NetworkEndianU32::from_native_endian(layer_4_packet_size),
-			reserved: unsafe { zeroed() },
-			layer_4_protocol_number,
-		};
-		
-		Self::from_struct_check_sum_partial(&internet_protocol_version_6_pseudo_header, 0)
+		Self::from_struct_check_sum_partial(&pseudo_header, 0)
 	}
 	
 	#[inline(always)]

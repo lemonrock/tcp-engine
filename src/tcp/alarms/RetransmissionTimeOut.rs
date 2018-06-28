@@ -12,14 +12,14 @@
 /// In practice, RFC 6298 is extremely similar to RFC 2988.
 ///
 /// This timer is used with congestion control; see RFC 5681 (which itself obsoletes RFC 2581).
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct RetransmissionTimeOut
 {
 	/// `SRTT`.
 	smoothed_round_trip_time: MillisecondDuration,
 	
 	/// `RTTVAR`.
-	round_trip_time_variable: MillisecondDuration,
+	round_trip_time_variance: MillisecondDuration,
 	
 	/// `RTO`.
 	retransmission_time_out: MillisecondDuration,
@@ -34,21 +34,21 @@ impl Default for RetransmissionTimeOut
 	#[inline(always)]
 	fn default() -> Self
 	{
-		Self
-		{
-			smoothed_round_trip_time: MillisecondDuration::Zero,
-			
-			round_trip_time_variable: MillisecondDuration::Zero,
-			
-			retransmission_time_out: Self::clamped_retransmission_time_out(Self::InitialRetransmissionTimeOut),
-			
-			round_trip_time_needs_measuring: true,
-		}
+		Self::Default
 	}
 }
 
 impl RetransmissionTimeOut
 {
+	const Default: Self = Self
+	{
+		smoothed_round_trip_time: MillisecondDuration::Zero,
+		round_trip_time_variance: MillisecondDuration::Zero,
+		retransmission_time_out: Self::clamped_retransmission_time_out(Self::InitialRetransmissionTimeOut),
+		round_trip_time_needs_measuring: true,
+		number_of_back_offs: 0,
+	};
+	
 	const ClockGranularity: MillisecondDuration = MillisecondDuration::from_milliseconds(Tick::MillisecondsPerTick);
 	
 	/// NOTE: We VIOLATE RFC 6298 Section 2.4 here ("Whenever RTO is computed, if it is less than 1 second then the RTO SHOULD be rounded up to 1 second.") by choosing a minimum of 256 milliseconds.
@@ -64,6 +64,36 @@ impl RetransmissionTimeOut
 	const InitialRetransmissionTimeOut: MilliseconDuration = MillisecondDuration::OneSecond;
 	
 	const MaximumNumberOfBackOffsBeforeResettingMeasurements: u8 = 8;
+	
+	#[inline(always)]
+	pub(crate) fn average_with(&mut self, other: &Self)
+	{
+		if other.round_trip_time_needs_measuring
+		{
+			return
+		}
+		
+		if self.round_trip_time_needs_measuring
+		{
+			self.smoothed_round_trip_time = other.smoothed_round_trip_time;
+			self.round_trip_time_variance = other.round_trip_time_variance;
+			self.retransmission_time_out = other.retransmission_time_out;
+			self.round_trip_time_needs_measuring = false;
+			self.number_of_back_offs = other.number_of_back_offs;
+			return
+		}
+		
+		// number of backs should be used as a weighting; the more back-offs, the less reliable the samples (RFC 6298 Section 5, final paragraph).
+		// + 1 as number of back-offs can be zero.
+		let right_numerator = self.number_of_back_offs + 1;
+		let left_numerator = other.number_of_back_offs + 1;
+		let average_divisor = right_numerator + other.number_of_back_offs + 1;
+		
+		self.smoothed_round_trip_time = ((left_numerator * self.smoothed_round_trip_time) + (right_numerator * other.smoothed_round_trip_time)) / average_divisor;
+		self.round_trip_time_variance = ((left_numerator * self.round_trip_time_variance) + (right_numerator * other.round_trip_time_variance)) / average_divisor;
+		self.recompute_retransmission_time_out();
+		self.number_of_back_offs = 0;
+	}
 	
 	#[inline(always)]
 	pub(crate) fn time_out(&self) -> MillisecondDuration
@@ -118,7 +148,6 @@ impl RetransmissionTimeOut
 		if self.round_trip_time_needs_measuring
 		{
 			self.first_measurement_of_round_trip_time_made(measurement_of_round_trip_time);
-			self.round_trip_time_needs_measuring = false;
 		}
 		else
 		{
@@ -139,8 +168,10 @@ impl RetransmissionTimeOut
 		let R = measurement_of_round_trip_time;
 		
 		self.smoothed_round_trip_time = R;
-		self.round_trip_time_variable = R / 2;
+		self.round_trip_time_variance = R / 2;
 		self.recompute_retransmission_time_out();
+		
+		self.round_trip_time_needs_measuring = false;
 	}
 	
 	/// RFC 6298 Section 2.3 & RFC 2988 Section 2.3: "When a subsequent RTT measurement R' is made, a host MUST set
@@ -159,11 +190,11 @@ impl RetransmissionTimeOut
 		let Rdash = measurement_of_round_trip_time;
 		
 		// Nominally, `beta` is ¼ and `1 - beta` is ¾.
-		// Thus `RTTVAR = (1 - beta) * RTTVAR + beta * |SRTT - R'|` is actually `SRTT = ¾ * self.round_trip_time_variable + ¼ * |SRTT - R'|`; we can then multiply by 4 to get:-
-		// `4 * RTTVAR = 3 * self.round_trip_time_variable + |SRTT - R'|`.
-		// `RTTVAR = (3 * self.round_trip_time_variable + |SRTT - R'|) / 4`.
-		// So, instead of `self.round_trip_time_variable = (1 - beta) * self.round_trip_time_variable + beta + self.smoothed_round_trip_time.absolute_difference(Rdash)`, we have:-
-		self.round_trip_time_variable = (3 * self.round_trip_time_variable + self.smoothed_round_trip_time.absolute_difference(Rdash)) / 4;
+		// Thus `RTTVAR = (1 - beta) * RTTVAR + beta * |SRTT - R'|` is actually `SRTT = ¾ * self.round_trip_time_variance + ¼ * |SRTT - R'|`; we can then multiply by 4 to get:-
+		// `4 * RTTVAR = 3 * self.round_trip_time_variance + |SRTT - R'|`.
+		// `RTTVAR = (3 * self.round_trip_time_variance + |SRTT - R'|) / 4`.
+		// So, instead of `self.round_trip_time_variance = (1 - beta) * self.round_trip_time_variance + beta + self.smoothed_round_trip_time.absolute_difference(Rdash)`, we have:-
+		self.round_trip_time_variance = (3 * self.round_trip_time_variance + self.smoothed_round_trip_time.absolute_difference(Rdash)) / 4;
 		
 		// Nominally, `alpha` is ¹⁄₈ and `1 - alpha` is ⁷⁄₈
 		// Thus, `SRTT = (1 - alpha) * SRTT + alpha * R'` is actually `SRTT = ⁷⁄₈ * SRTT + ¹⁄₈ * R'`; we can then multiply by 8 to get:-
@@ -183,7 +214,7 @@ impl RetransmissionTimeOut
 		
 		const K: u64 = 4;
 		
-		self.retransmission_time_out = Self::clamped_retransmission_time_out(self.smoothed_round_trip_time.saturating_add(max(G, self.round_trip_time_variable * K)));
+		self.retransmission_time_out = Self::clamped_retransmission_time_out(self.smoothed_round_trip_time.saturating_add(max(G, self.round_trip_time_variance * K)));
 	}
 	
 	#[inline(always)]

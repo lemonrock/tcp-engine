@@ -14,6 +14,7 @@ pub(crate) struct TransmissionControlBlock<TCBA: TransmissionControlBlockAbstrac
 	state: State,
 	RCV: TransmissionControlBlockReceive,
 	SND: TransmissionControlBlockSend,
+	MAX: TransmissionControlBlockMaxima,
 	
 	unacknowledged_sent_segments: UnacknowledgedSegments,
 	
@@ -42,6 +43,9 @@ pub(crate) struct TransmissionControlBlock<TCBA: TransmissionControlBlockAbstrac
 	
 	/// This value is uninitialized until the state becomes established.
 	selective_acknowledgments_permitted: bool,
+	
+	/// This value is always known but may not be in use.
+	md5_authentication_key: Option<Rc<Md5PreSharedSecretKey>>,
 }
 
 impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
@@ -50,9 +54,11 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	///
 	/// This variant of open does not send any data.
 	#[inline(always)]
-	pub(crate) fn new_for_open(interface: &Interface<TCBA>, remote_internet_protocol_address: TCBA::Address, remote_port_local_port: RemotePortLocalPort) -> Self
+	pub(crate) fn new_for_open(interface: &Interface<TCBA>, remote_internet_protocol_address: TCBA::Address, remote_port_local_port: RemotePortLocalPort, now: MonotonicMillisecondTimestamp) -> Self
 	{
-		let ISS = interface.generate_initial_sequence_number(remote_internet_protocol_address, remote_port_local_port);
+		let cached_congestion_data = interface.cached_congestion_data(&remote_internet_protocol_address);
+		
+		let ISS = interface.generate_initial_sequence_number(now, &remote_internet_protocol_address, remote_port_local_port);
 		
 		let key = TransmissionControlBlockKey::for_client(remote_internet_protocol_address, for_client);
 		
@@ -64,41 +70,43 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 			
 			key,
 		
-			state: Cell::new(State::SynchronizeSent),
+			state: State::SynchronizeSent,
 			
-			RCV: RefCell::new
-			(
-				TransmissionControlBlockReceive
+			RCV: TransmissionControlBlockReceive
+			{
+				NXT: RCV_NXT,
+				WND: InitialWindowSize::TrueWindow,
+				Wind: Wind
 				{
-					NXT: RCV_NXT,
-					WND: InitialWindowSize::TrueWindow,
-					Wind: Wind
-					{
-						Scale: InitialWindowSize::Scale
-					},
-					processed: RCV_NXT,
-				}
-			),
+					Shift: InitialWindowSize::Shift
+				},
+				processed: RCV_NXT,
+			},
 			
-			SND: RefCell::new
-			(
-				TransmissionControlBlockSend
+			SND: TransmissionControlBlockSend
+			{
+				UNA: ISS,
+				NXT: ISS + 1,
+				WND: WindowSize::Zero,
+				Wind: Wind
 				{
-					UNA: ISS,
-					NXT: ISS + 1,
+					Shift: WindowScaleOption::Zero,
+				},
+				WL1: WrappingSequenceNumber::Zero,
+				WL2: WrappingSequenceNumber::Zero,
+			},
+			
+			MAX: TransmissionControlBlockMaxima
+			{
+				SND: TransmissionControlBlockMaxima
+				{
 					WND: WindowSize::Zero,
-					Wind: Wind
-					{
-						Scale: WindowScaleOption::Zero,
-					},
-					WL1: WrappingSequenceNumber::Zero,
-					WL2: WrappingSequenceNumber::Zero,
 				}
-			),
+			},
 			
 			unacknowledged_sent_segments: UnacknowledgedSegments::default(),
 			
-			retransmission_time_out_alarm: Default::default(),
+			retransmission_time_out_alarm: RetransmissionTimeOutAlarmBehaviour::new(&cached_congestion_data),
 			keep_alive_alarm: Default::default(),
 			linger_alarm: Default::default(),
 			
@@ -108,13 +116,18 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 			
 			maximum_segment_size_to_send_to_remote: 0,
 			selective_acknowledgments_permitted: false,
+			
+			md5_authentication_key: interface.find_md5_authentication_key(remote_internet_protocol_address, remote_port_local_port).map(|key_reference| key_reference.clone()),
 		}
 	}
 	
 	#[inline(always)]
-	pub(crate) fn new_for_listen(interface: &Interface<TCBA>, source_internet_protocol_address: &TCBA::Address, SEG: &ParsedTcpSegment, tcp_options: &TcpOptions, now: MonotonicMillisecondTimestamp) -> Self
+	pub(crate) fn new_for_listen(interface: &Interface<TCBA>, source_internet_protocol_address: &TCBA::Address, SEG: &ParsedTcpSegment, tcp_options: &TcpOptions, now: MonotonicMillisecondTimestamp, md5_authentication_key: Option<Rc<Md5PreSharedSecretKey>>) -> Self
 	{
 		let remote_internet_protocol_address = source_internet_protocol_address;
+		
+		let cached_congestion_data = interface.cached_congestion_data(now, &remote_internet_protocol_address);
+		
 		let key = TransmissionControlBlockKey::from_incoming_segment(remote_internet_protocol_address, SEG);
 		
 		let unscaled_receive_window = InitialWindowSize::Segment;
@@ -139,41 +152,43 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 			
 			key,
 			
-			state: Cell::new(State::Established),
+			state: State::Established,
 			
-			RCV: RefCell::new
-			(
-				TransmissionControlBlockReceive
+			RCV: TransmissionControlBlockReceive
+			{
+				NXT: RCV_NXT,
+				WND: receive_window,
+				Wind: Wind
 				{
-					NXT: RCV_NXT,
-					WND: receive_window,
-					Wind: Wind
-					{
-						Scale: receive_window_scale
-					},
-					processed: RCV_NXT,
-				}
-			),
+					Shift: receive_window_scale
+				},
+				processed: RCV_NXT,
+			},
 			
-			SND: RefCell::new
-			(
-				TransmissionControlBlockSend
+			SND: TransmissionControlBlockSend
+			{
+				UNA: parsed_syncookie.ISS,
+				NXT: SEG.ACK,
+				WND: send_window,
+				Wind: Wind
 				{
-					UNA: parsed_syncookie.ISS,
-					NXT: SEG.ACK,
+					Shift: send_window_scale,
+				},
+				WL1: SEG.SEQ,
+				WL2: SEG.ACK,
+			},
+			
+			MAX: TransmissionControlBlockMaxima
+			{
+				SND: TransmissionControlBlockMaxima
+				{
 					WND: send_window,
-					Wind: Wind
-					{
-						Scale: send_window_scale,
-					},
-					WL1: SEG.SEQ,
-					WL2: SEG.ACK,
 				}
-			),
+			},
 			
 			unacknowledged_sent_segments: UnacknowledgedSegments::default(),
 			
-			retransmission_time_out_alarm: Default::default(),
+			retransmission_time_out_alarm: RetransmissionTimeOutAlarmBehaviour::new(&cached_congestion_data),
 			keep_alive_alarm: Default::default(),
 			linger_alarm: Default::default(),
 			
@@ -181,8 +196,10 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 			
 			we_are_the_listener: true,
 			
-			maximum_segment_size_to_send_to_remote: min(parsed_syncookie.their_maximum_segment_size, interface.our_current_maximum_segment_size_without_fragmentation(remote_internet_protocol_address)),
+			maximum_segment_size_to_send_to_remote: MaximumSegmentSizeOption::maximum_segment_size_to_send_to_remote_u16(parsed_syncookie.their_maximum_segment_size, interface, remote_internet_protocol_address),
 			selective_acknowledgments_permitted: parsed_syncookie.their_selective_acknowledgment_permitted,
+			
+			md5_authentication_key,
 		}
 	}
 	
@@ -219,12 +236,27 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	}
 	
 	#[inline(always)]
-	pub(crate) fn close(&mut self, interface: &Interface<TCBA>)
+	fn cancel_alarms(&mut self, interface: &Interface<TCBA>)
+	{
+		let alarms = interface.alarms();
+		self.retransmission_time_out_alarm.cancel(alarms);
+		self.keep_alive_alarm.cancel(alarms);
+		self.linger_alarm.cancel(alarms);
+	}
+	
+	
+	
+	
+	#[inline(always)]
+	pub(crate) fn close(&mut self, interface: &Interface<TCBA>, now: MonotonicMillisecondTimestamp)
 	{
 		self.events_receiver.finish();
 		//self.set_state(State::Closed);
 		self.cancel_alarms(interface);
 		self.unacknowledged_sent_segments.remove_all();
+		
+		interface.update_recent_congestion_data(self, now);
+		
 		interface.remove_transmission_control_block(&self.key)
 	}
 	
@@ -235,6 +267,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 		//self.set_state(State::Closed);
 		self.cancel_alarms(interface);
 		self.unacknowledged_sent_segments.remove_all();
+		
 		interface.remove_transmission_control_block(&self.key)
 	}
 	
@@ -245,17 +278,37 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 		//self.set_state(State::Closed);
 		self.cancel_alarms(interface);
 		self.unacknowledged_sent_segments.remove_all();
+		
 		interface.remove_transmission_control_block(&self.key)
 	}
 	
 	#[inline(always)]
-	fn cancel_alarms(&mut self, interface: &Interface<TCBA>)
+	pub(crate) fn connection_reset_established_fin_wait_1_fin_wait_2_close_wait(&mut self, interface: &Interface<TCBA>)
 	{
-		let alarms = interface.alarms();
-		self.retransmission_time_out_alarm.cancel(alarms);
-		self.keep_alive_alarm.cancel(alarms);
-		self.linger_alarm.cancel(alarms);
+		// See Processing Incoming Segments 4.2.2.1
+		self.events_receiver.finish_forcibly_closed(true);
+		//self.set_state(State::Closed);
+		self.cancel_alarms(interface);
+		self.unacknowledged_sent_segments.remove_all();
+		
+		interface.remove_transmission_control_block(&self.key)
 	}
+	
+	#[inline(always)]
+	pub(crate) fn connection_reset_closing_last_acknowledgment_time_wait(&mut self, interface: &Interface<TCBA>)
+	{
+		// See Processing Incoming Segments 4.2.2.1
+		self.events_receiver.finish_forcibly_closed(true);
+		//self.set_state(State::Closed);
+		self.cancel_alarms(interface);
+		self.unacknowledged_sent_segments.remove_all();
+		
+		interface.remove_transmission_control_block(&self.key)
+	}
+	
+	
+	
+	
 	
 	#[inline(always)]
 	pub(crate) fn remove_all_sent_segments_up_to(&mut self, up_to_sequence_number: WrappingSequenceNumber) -> Option<MonotonicMillisecondTimestamp>
@@ -324,6 +377,18 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	}
 	
 	#[inline(always)]
+	pub(crate) fn md5_authentication_key(&self) -> Option<&Rc<Md5PreSharedSecretKey>>
+	{
+		self.md5_authentication_key.as_ref()
+	}
+	
+	#[inline(always)]
+	pub(crate) fn authentication_is_required(&self) -> bool
+	{
+		self.md5_authentication_key.is_some()
+	}
+	
+	#[inline(always)]
 	pub(crate) fn is_state_not_time_wait(&self) -> bool
 	{
 		self.state().is_not_time_wait()
@@ -336,9 +401,9 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	}
 	
 	#[inline(always)]
-	pub(crate) fn is_state_after_exchange_of_synchronized(&self) -> bool
+	pub(crate) fn is_state_synchronized(&self) -> bool
 	{
-		self.state().is_after_exchange_of_synchronized()
+		self.state().is_synchronized()
 	}
 	
 	#[inline(always)]

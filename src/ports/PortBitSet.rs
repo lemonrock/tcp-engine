@@ -27,7 +27,7 @@ impl PortBitSet
 		unsafe { zeroed() }
 	}
 	
-	/// Creates an instance with all ports bar those configured to be ignored (configuration features "server-drop-source-port-0", "server-drop-source-ports-1-1023" and "server-drop-source-ports-experimental-rfc4727" (ports 1021 and 1022)).
+	/// Creates an instance with all ports bar those configured to be ignored (configuration features "server-drop-source-port-0", "server-drop-source-ports-1-1023" and "server-drop-source-ports-experimental-rfc-4727" (ports 1021 and 1022)).
 	#[inline(always)]
 	pub(crate) fn full_except_for_configured_remote_ports_to_drop() -> Self
 	{
@@ -54,7 +54,7 @@ impl PortBitSet
 			unsafe { (this.0.get_unchecked_mut(1) as *mut _ as *mut u64).write_bytes(0x00, bytes_to_set_to_zero) };
 		}
 		
-		if cfg!(feature = "server-drop-source-ports-experimental-rfc4727")
+		if cfg!(feature = "server-drop-source-ports-experimental-rfc-4727")
 		{
 			this.remove(1021);
 			this.remove(1022);

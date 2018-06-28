@@ -97,7 +97,7 @@ macro_rules! parse_selective_acknowledgment_block
 
 macro_rules! parse_options
 {
-	($packet: ident, $minimum_tcp_maximum_segment_size_option: ident, $options_data_pointer: ident, $options_data_length: ident, $all_flags: ident) =>
+	($packet: ident, $smallest_acceptable_tcp_maximum_segment_size_option: ident, $options_data_pointer: ident, $options_data_length: ident, $all_flags: ident) =>
 	{
 		{
 			let mut tcp_options = TcpOptions::default();
@@ -176,9 +176,9 @@ macro_rules! parse_options
 						let pointer_to_data = parse_option_known_length!($packet, pointer_to_option_kind, end_pointer, KnownLength);
 						
 						let maximum_segment_size = MaximumSegmentSizeOption(unsafe { *(pointer_to_data as *const NetworkEndianU16) });
-						if unlikely(maximum_segment_size < $minimum_tcp_maximum_segment_size_option)
+						if unlikely(maximum_segment_size < $smallest_acceptable_tcp_maximum_segment_size_option)
 						{
-							drop!($packet, "TCP option maximum segment size was smaller than minimum_tcp_maximum_segment_size_option")
+							drop!($packet, "TCP option maximum segment size was smaller than smallest_acceptable_tcp_maximum_segment_size_option")
 						}
 						
 						tcp_options.maximum_segment_size = Some(maximum_segment_size);
@@ -483,7 +483,7 @@ macro_rules! parse_options
 							let message_authentication_code_length = length - MinimumLength;
 							let message_authentication_code = unsafe { NonNull::new_unchecked((pointer_to_data + 2) as *mut u8) };
 							
-							Some(AuthenticationOption(Authentication::Rfc5926Authentication { key_id, r_next_key_id, message_authentication_code_length, message_authentication_code }))
+							Some(AuthenticationOption(Authentication::Rfc5925Authentication { key_id, r_next_key_id, message_authentication_code_length, message_authentication_code }))
 						};
 						
 						length as usize

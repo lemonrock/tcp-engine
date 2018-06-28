@@ -7,27 +7,26 @@ pub trait InternetProtocolAddress: NetworkEndian
 {
 	/// Minimum "PathMTU" (or just "MTU").
 	///
-	/// 88 for Internet Protocol version 4.
+	/// 68 for Internet Protocol version 4, although practically, 254 (AX.25 packet radio) is the smallest known.
 	/// 1280 for Internet Protocol version 6.
 	const MinimumPathMaximumTransmissionUnitSize: u16;
 	
 	/// Default "PathMTU" (or just "MTU").
 	///
-	/// 576 for Internet Protocol version 4.
+	/// 576 for Internet Protocol version 4, although RFC 4821 Section 7.2 Paragraph 2: "Given today's technologies, a value of 1024 bytes is probably safe enough suggests that it's "probably safe enough" to assume minimal MTU of 1,024".
 	/// 1280 for Internet Protocol version 6.
 	const DefaultPathMaximumTransmissionUnitSize: u16;
 	
 	/// Minimum TCP maximum segment size option.
 	///
 	/// 216 for Internet Protocol version 4 (based on the "MTU" of AX.25 packet radio).
-	/// 1220 for Internet Protocol version 6.
-	const MinimumTcpMaximumSegmentSizeOption: MaximumSegmentSizeOption;
+	/// 1220 for Internet Protocol version 6 when the option "increase-ipv6-mss-default-to-1220" is specified, otherwise 536.
+	const SmallestAcceptableMaximumSegmentSizeOption: MaximumSegmentSizeOption;
 	
-	/// Minimum TCP maximum segment size option.
+	/// Default TCP maximum segment size option.
 	///
-	/// 536 for Internet Protocol version 4.
-	/// 1220 for Internet Protocol version 6.
-	const DefaultTcpMaximumSegmentSizeOption: MaximumSegmentSizeOption;
+	/// Strictly speaking, this should always be 536, however, on IPv6, it really should have a floor which is the same as SmallestAcceptableMaximumSegmentSizeOption (1220).
+	const DefaultMaximumSegmentSizeOptionIfNoneSpecified: MaximumSegmentSizeOption;
 	
 	/// Smallest header size.
 	///
@@ -103,7 +102,19 @@ pub trait InternetProtocolAddress: NetworkEndian
 	#[inline(always)]
 	fn calculate_internet_protocol_tcp_check_sum(source_internet_protocol_address: &Self, destination_internet_protocol_address: &Self, internet_packet_payload_pointer: NonNull<u8>, layer_4_packet_size: usize) -> Rfc1071CompliantCheckSum;
 	
+	#[doc(hidden)]
 	#[inline(always)]
 	fn write_to_hash<H: Hasher>(&self, hasher: &mut H);
+	
+	#[doc(hidden)]
+	type PseudoHeader: Sized;
+	
+	#[doc(hidden)]
+	#[inline(always)]
+	fn pseudo_header(source_internet_protocol_address: &Self, destination_internet_protocol_address: &Self, layer_4_protocol_number: u8, layer_4_packet_size: usize) -> Self::PseudoHeader;
+	
+	#[doc(hidden)]
+	#[inline(always)]
+	fn secure_hash(digester: &mut impl Md5Digest, source_internet_protocol_address: &Self, destination_internet_protocol_address: &Self, layer_4_protocol_number: u8, layer_4_packet_size: usize);
 }
 

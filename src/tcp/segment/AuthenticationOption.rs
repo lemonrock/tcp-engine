@@ -4,7 +4,7 @@
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 #[repr(C, packed)]
-pub(crate) struct AuthenticationOption(Authentication);
+pub(crate) struct AuthenticationOption(pub(crate) Authentication);
 
 impl AuthenticationOption
 {

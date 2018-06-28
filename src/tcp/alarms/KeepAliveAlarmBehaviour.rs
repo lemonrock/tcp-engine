@@ -12,11 +12,11 @@ pub(crate) struct KeepAliveAlarmBehaviour<TCBA: TransmissionControlBlockAbstract
 impl<TCBA: TransmissionControlBlockAbstractions> AlarmBehaviour for KeepAliveAlarmBehaviour<TCBA>
 {
 	#[inline(always)]
-	fn process_alarm<TCBA: TransmissionControlBlockAbstractions>(transmission_control_block: &mut TransmissionControlBlock<TCBA>, interface: &Interface<TCBA>) -> Option<TickDuration>
+	fn process_alarm<TCBA: TransmissionControlBlockAbstractions>(transmission_control_block: &mut TransmissionControlBlock<TCBA>, interface: &Interface<TCBA>, _now: Tick) -> Option<TickDuration>
 	{
 		let this: &mut Self = transmission_control_block.keep_alive_alarm.alarm_behaviour;
 		
-		debug_assert!(transmission_control_block.is_state_after_exchange_of_synchronized(), "state is not yet Established or later");
+		debug_assert!(transmission_control_block.is_state_synchronized(), "state is not yet Established or later");
 		
 		let ticks_since_last_peer_activity_on_the_connection =
 		{
@@ -38,7 +38,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> AlarmBehaviour for KeepAliveAla
 			}
 			else
 			{
-				if unlikely(interface.send_probe_without_packet_to_reuse(transmission_control_block).is_err())
+				if unlikely(interface.send_keep_alive_probe_without_packet_to_reuse(transmission_control_block).is_err())
 				{
 					transmission_control_block.forcibly_close(interface);
 					return None

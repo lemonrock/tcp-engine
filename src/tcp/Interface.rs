@@ -9,17 +9,19 @@ pub struct Interface<TCBA: TransmissionControlBlockAbstractions>
 	check_sum_layering: CheckSumLayering,
 	listening_server_port_combination_validity: PortCombinationValidity,
 	local_internet_protocol_address: A,
-	transmission_control_blocks: RefCell<HashMap<TransmissionControlBlockKey<TCBA::Address>, TransmissionControlBlock<TCBA>>>,
+	transmission_control_blocks: RefCell<BoundedHashMap<TransmissionControlBlockKey<TCBA::Address>, TransmissionControlBlock<TCBA>>>,
+	recent_connections_congestion_data: RefCell<LeastRecentlyUsedCacheWithExpiry<TCBA::Address, CachedCongestionData>>,
 	initial_sequence_number_generator: IntitialSequenceNumberGenerator,
 	syn_cookie_protection: SynCookieProtection,
 	alarms: Alarms<TCBA>,
+	authentication_pre_shared_secret_keys: AuthenticationPreSharedSecretKeys,
 }
 
 impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 {
 	/// Creates a new instance.
 	#[inline(always)]
-	pub fn new(transmission_control_block_abstractions: TCBA, check_sum_layering: CheckSumLayering, listening_server_port_combination_validity: PortCombinationValidity, local_internet_protocol_address: TCBA::Address, transmission_control_blocks_map_capacity: u32) -> Self
+	pub fn new(transmission_control_block_abstractions: TCBA, check_sum_layering: CheckSumLayering, listening_server_port_combination_validity: PortCombinationValidity, local_internet_protocol_address: TCBA::Address, transmission_control_blocks_map_capacity: usize, maximum_recent_connections_capacity: usize, expiry_period: MillisecondDuration, authentication_pre_shared_secret_keys: AuthenticationPreSharedSecretKeys) -> Self
 	{
 		let now = Tick::now();
 		
@@ -29,10 +31,12 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 			check_sum_layering,
 			listening_server_port_combination_validity,
 			local_internet_protocol_address,
-			transmission_control_blocks: RefCell::new(HashMap::with_capacity(transmission_control_blocks_map_capacity as usize)),
+			transmission_control_blocks: RefCell::new(BoundedHashMap::new(transmission_control_blocks_map_capacity)),
+			recent_connections_congestion_data: RefCell::new(LeastRecentlyUsedCacheWithExpiry::new(maximum_recent_connections_capacity, expiry_period)),
 			initial_sequence_number_generator: IntitialSequenceNumberGenerator::default(),
 			syn_cookie_protection: SynCookieProtection::new(now),
 			alarms: Alarms::new(now),
+			authentication_pre_shared_secret_keys,
 		}
 	}
 	
@@ -44,6 +48,11 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 	}
 	
 	/// NOTE: RFC 2675 IPv6 jumbograms are not supported.
+	///
+	/// This logic DOES NOT validate:-
+	///
+	/// * that source and destination addreses are permitted, eg are not multicast (this is the responsibility of lower layers);
+	/// * that the source and destination addresses (and ports) are not the same
 	///
 	/// `layer_4_packet_size` is NOT the same as the IPv6 payload size; in this case, it is the IPv6 payload size LESS the extensions headers size.
 	#[inline(always)]
@@ -97,11 +106,11 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		
 		macro_rules! finish_parsing_of_tcp_segment
 		{
-			($self: ident, $now: ident, $packet: ident, $minimum_tcp_maximum_segment_size_option: ident, $options_length: ident, $all_flags: ident, $source_internet_protocol_address: ident, $SEG: ident, $tcp_segment_length: ident) =>
+			($self: ident, $now: ident, $packet: ident, $smallest_acceptable_tcp_maximum_segment_size_option: ident, $options_length: ident, $all_flags: ident, $source_internet_protocol_address: ident, $SEG: ident, $tcp_segment_length: ident) =>
 			{
 				{
 					let options_data_pointer = $SEG.options_data_pointer();
-					let tcp_options = parse_options!($packet, $minimum_tcp_maximum_segment_size_option, options_data_pointer, $options_length, $all_flags);
+					let tcp_options = parse_options!($packet, $smallest_acceptable_tcp_maximum_segment_size_option, options_data_pointer, $options_length, $all_flags);
 					ParsedTcpSegment::new($now, $packet, $self, $source_internet_protocol_address, $SEG, tcp_options, $options_length, $tcp_segment_length)
 				}
 			}
@@ -109,7 +118,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		
 		macro_rules! validate_connection_establishment_segment
 		{
-			($self: ident, $now: ident, $packet: ident, $minimum_tcp_maximum_segment_size_option: ident, $options_length: ident, $all_flags: ident, $source_internet_protocol_address: ident, $SEG: ident, $tcp_segment_length: ident) =>
+			($self: ident, $now: ident, $packet: ident, $smallest_acceptable_tcp_maximum_segment_size_option: ident, $options_length: ident, $all_flags: ident, $source_internet_protocol_address: ident, $SEG: ident, $tcp_segment_length: ident) =>
 			{
 				{
 					if $self.listening_server_port_combination_validity.port_combination_is_invalid($SEG.source_port_destination_port())
@@ -117,17 +126,17 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 						drop!($packet, "TCP connection establishment segment (Synchronize or Acknowledgment) is not from an acceptable combination of source (remote) port and destination (local) port")
 					}
 					
-					finish_parsing_of_tcp_segment!($self, $now, $packet, $minimum_tcp_maximum_segment_size_option, $options_length, $all_flags, $source_internet_protocol_address, $SEG, $tcp_segment_length)
+					finish_parsing_of_tcp_segment!($self, $now, $packet, $smallest_acceptable_tcp_maximum_segment_size_option, $options_length, $all_flags, $source_internet_protocol_address, $SEG, $tcp_segment_length)
 				}
 			}
 		}
 		
 		macro_rules! received_synchronize_when_state_is_listen_or_synchronize_received
 		{
-			($self: ident, $now: ident, $packet: ident, $minimum_tcp_maximum_segment_size_option: ident, $options_length: ident, $all_flags: ident, $source_internet_protocol_address: ident, $SEG: ident, $tcp_segment_length: ident, $explicit_congestion_notification_supported: expr) =>
+			($self: ident, $now: ident, $packet: ident, $smallest_acceptable_tcp_maximum_segment_size_option: ident, $options_length: ident, $all_flags: ident, $source_internet_protocol_address: ident, $SEG: ident, $tcp_segment_length: ident, $explicit_congestion_notification_supported: expr) =>
 			{
 				{
-					let mut parsed_tcp_segment = validate_connection_establishment_segment!($self, $now, $packet, $minimum_tcp_maximum_segment_size_option, $options_length, $all_flags, $source_internet_protocol_address, $SEG, $tcp_segment_length);
+					let mut parsed_tcp_segment = validate_connection_establishment_segment!($self, $now, $packet, $smallest_acceptable_tcp_maximum_segment_size_option, $options_length, $all_flags, $source_internet_protocol_address, $SEG, $tcp_segment_length);
 					parsed_tcp_segment.received_synchronize_when_state_is_listen_or_synchronize_received($explicit_congestion_notification_supported)
 				}
 			}
@@ -135,7 +144,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		
 		macro_rules! received_acknowledgment_when_state_is_listen_or_synchronize_received
 		{
-			($self: ident, $now: ident, $packet: ident, $minimum_tcp_maximum_segment_size_option: ident, $options_length: ident, $all_flags: ident, $source_internet_protocol_address: ident, $SEG: ident, $tcp_segment_length: ident, $push_flag_set: expr) =>
+			($self: ident, $now: ident, $packet: ident, $smallest_acceptable_tcp_maximum_segment_size_option: ident, $options_length: ident, $all_flags: ident, $source_internet_protocol_address: ident, $SEG: ident, $tcp_segment_length: ident) =>
 			{
 				{
 					if unlikely($self.transmission_control_blocks_at_maximum_capacity())
@@ -143,8 +152,8 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 						drop!($SEG, "TCP at maximum capacity")
 					}
 					
-					let mut parsed_tcp_segment = validate_connection_establishment_segment!($self, $now, $packet, $minimum_tcp_maximum_segment_size_option, $options_length, $all_flags, $source_internet_protocol_address, $SEG, $tcp_segment_length);
-					parsed_tcp_segment.received_acknowledgment_when_state_is_listen_or_synchronize_received($push_flag_set)
+					let mut parsed_tcp_segment = validate_connection_establishment_segment!($self, $now, $packet, $smallest_acceptable_tcp_maximum_segment_size_option, $options_length, $all_flags, $source_internet_protocol_address, $SEG, $tcp_segment_length);
+					parsed_tcp_segment.received_acknowledgment_when_state_is_listen_or_synchronize_received()
 				}
 			}
 		}
@@ -166,7 +175,8 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		if unlikely(all_flags.has_urgent_flag())
 		{
 			drop!(packet, "TCP URG flag is not supported")
-		} else if cfg!(feature = "drop-urgent-pointer-field-non-zero")
+		}
+		else if cfg!(feature = "drop-urgent-pointer-field-non-zero")
 		{
 			if unlikely(SEG.urgent_pointer_if_URG_flag_set_is_not_zero())
 			{
@@ -176,31 +186,25 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		
 		let source_internet_protocol_address = packet.source_internet_protocol_address();
 		
-		// TODO: this calculation copies bytes (from the reference to the InternetProtocolAddress) on the critical path if calculating the check sum in software.
-		// This is only critical for IPv6.
 		if unlikely(self.is_tcp_check_sum_invalid(SEG, layer_4_packet_size, source_internet_protocol_address))
 		{
 			drop!(packet, "TCP check sum is invalid")
 		}
 		
-		let minimum_tcp_maximum_segment_size_option = TCBA::Address::MinimumTcpMaximumSegmentSizeOption;
+		let smallest_acceptable_tcp_maximum_segment_size_option = TCBA::Address::SmallestAcceptableMaximumSegmentSizeOption;
 		
-		// TODO: this look up copies bytes (from the reference to the InternetProtocolAddress) on the critical path.
-		// This is only critical for IPv6.
 		match self.find_transmission_control_block_for_incoming_segment(source_internet_protocol_address, SEG)
 		{
 			// State is either Listen or SynchronizeReceived
 			None => match all_flags
 			{
-				Flags::Synchronize => received_synchronize_when_state_is_listen_or_synchronize_received!(self, now, packet, minimum_tcp_maximum_segment_size_option, options_length, all_flags, source_internet_protocol_address, SEG, tcp_segment_length, false),
+				Flags::Synchronize => received_synchronize_when_state_is_listen_or_synchronize_received!(self, now, packet, smallest_acceptable_tcp_maximum_segment_size_option, options_length, all_flags, source_internet_protocol_address, SEG, tcp_segment_length, false),
 				
 				Flags::SynchronizeExplicitCongestionEchoCongestionWindowReduced => received_synchronize_when_state_is_listen_or_synchronize_received!(self, now, packet, options_length, all_flags, source_internet_protocol_address, SEG, tcp_segment_length, true),
 				
 				// TODO: Add support for Explicit Congestion Notification, ECN.
 				
-				Flags::Acknowledgment => received_acknowledgment_when_state_is_listen_or_synchronize_received!(self, now, packet, minimum_tcp_maximum_segment_size_option, options_length, all_flags, source_internet_protocol_address, SEG, tcp_segment_length, false),
-				
-				Flags::AcknowledgmentPush => received_acknowledgment_when_state_is_listen_or_synchronize_received!(self, now, packet, minimum_tcp_maximum_segment_size_option, options_length, all_flags, source_internet_protocol_address, SEG, tcp_segment_length, true),
+				Flags::Acknowledgment | Flags::AcknowledgmentPush => received_acknowledgment_when_state_is_listen_or_synchronize_received!(self, now, packet, smallest_acceptable_tcp_maximum_segment_size_option, options_length, all_flags, source_internet_protocol_address, SEG, tcp_segment_length),
 				
 				// "A Finite State Machine Model of TCP Connections in the Transport Layer", J. Treurniet and J.H. Lefebvre, 2003 (http://cradpdf.drdc-rddc.gc.ca/PDFS/unc25/p520460.pdf) pages 5 & 6:-
 				// State that whilst these states are techically valid, they are probably a scan.
@@ -226,14 +230,14 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 			
 			Some(transmission_control_block) =>
 			{
-				let mut parsed_tcp_segment = finish_parsing_of_tcp_segment!(self, now, packet, minimum_tcp_maximum_segment_size_option, options_length, all_flags, source_internet_protocol_address, SEG, tcp_segment_length);
+				let mut parsed_tcp_segment = finish_parsing_of_tcp_segment!(self, now, packet, smallest_acceptable_tcp_maximum_segment_size_option, options_length, all_flags, source_internet_protocol_address, SEG, tcp_segment_length);
 				parsed_tcp_segment.process_tcp_segment_when_state_is_other_than_listen_or_synchronize_received(transmission_control_block.deref())
 			}
 		}
 	}
 	
 	#[inline(always)]
-	pub(crate) fn generate_initial_sequence_number(&self, remote_internet_protocol_address: TCBA::Address, remote_port_local_port: RemotePortLocalPort)
+	pub(crate) fn generate_initial_sequence_number(&self, remote_internet_protocol_address: &TCBA::Address, remote_port_local_port: RemotePortLocalPort)
 	{
 		self.initial_sequence_number_generator.generate_initial_sequence_number(self.local_internet_protocol_address, remote_internet_protocol_address, remote_port_local_port)
 	}
@@ -248,7 +252,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 	fn transmission_control_blocks_at_maximum_capacity(&self) -> bool
 	{
 		let transmission_control_blocks = self.transmission_control_blocks.borrow();
-		transmission_control_blocks.len() == transmission_control_blocks.capacity()
+		transmission_control_blocks.is_full()
 	}
 	
 	#[inline(always)]
@@ -266,7 +270,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		#[inline(always)]
 		fn smuggled_pointer_hack_because_ref_map_must_return_a_reference_not_an_option<'a, TCBA: TransmissionControlBlockAbstractions>() -> &'a TransmissionControlBlock<TCBA>
 		{
-			unsafe { &*NonNull::dangling().as_ptr() }
+			unsafe { & * NonNull::dangling().as_ptr() }
 		}
 		
 		let key = TransmissionControlBlockKey::from_incoming_segment(remote_internet_protocol_address: Address, SEG: &TcpSegment);
@@ -292,9 +296,48 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 	}
 	
 	#[inline(always)]
+	pub(crate) fn cached_congestion_data<'a>(&self, now: MonotonicMillisecondTimestamp, remote_internet_protocol_address: &TCBA::Address) -> Ref<'a, CachedCongestionData>
+	{
+		static Default: CachedCongestionData = CachedCongestionData::Default;
+		
+		let recent_connections_congestion_data = self.recent_connections_congestion_data.borrow_mut();
+		
+		Ref::map(recent_connections_congestion_data, |recent_connections_congestion_data| recent_connections_congestion_data.get(key).unwrap_or(&Default))
+	}
+	
+	#[inline(always)]
+	pub(crate) fn update_recent_congestion_data(&self, transmission_control_block: &TransmissionControlBlock<TCBA>, now: MonotonicMillisecondTimestamp)
+	{
+		let recent_connections_congestion_data = self.recent_connections_congestion_data.borrow_mut();
+		
+		let remote_internet_protocol_address = transmission_control_block.remote_internet_protocol_address();
+		
+		if let Some(cached_connection_data) = recent_connections_congestion_data.get_mut(now, remote_internet_protocol_address)
+		{
+			cached_connection_data.update_retransmission_time_out(&transmission_control_block.retransmission_time_out_alarm.retransmission_time_out);
+		}
+		else
+		{
+			recent_connections_congestion_data.insert(now, remote_internet_protocol_address, CachedCongestionData::new(transmission_control_block.retransmission_time_out_alarm.retransmission_time_out.clone(), 0, 0, 0, 0);
+		}
+	}
+	
+	#[inline(always)]
 	pub(crate) fn alarms(&self) -> &Alarms<TCBA>
 	{
 		&self.alarms
+	}
+	
+	#[inline(always)]
+	pub(crate) fn authentication_is_required(&self, remote_internet_protocol_address: &Address, remote_port_local_port: RemotePortLocalPort) -> bool
+	{
+		self.authentication_pre_shared_secret_keys.authentication_is_required(remote_internet_protocol_address, remote_port_local_port.local_port())
+	}
+	
+	#[inline(always)]
+	pub(crate) fn find_md5_authentication_key(&self, remote_internet_protocol_address: &Address, remote_port_local_port: RemotePortLocalPort) -> Option<&Rc<Md5PreSharedSecretKey>>
+	{
+		self.authentication_pre_shared_secret_keys.find_md5_authentication_key(remote_internet_protocol_address, remote_port_local_port.local_port())
 	}
 	
 	#[inline(always)]
@@ -321,40 +364,47 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 
 impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 {
-	pub(crate) fn send_synchronize_acknowledgment(&self, now: MonotonicMillisecondTimestamp, packet: TCBA::Packet, remote_internet_protocol_address: &TCBA::Address, SEG: &ParsedTcpSegment, their_maximum_segment_size: Option<MaximumSegmentSizeOption>, their_window_scale: Option<WindowScaleOption>, their_selective_acknowledgment_permitted: bool, their_timestamp: Option<TimestampsOption>)
+	pub(crate) fn send_synchronize_acknowledgment(&self, now: MonotonicMillisecondTimestamp, packet: TCBA::Packet, remote_internet_protocol_address: &TCBA::Address, SEG: &ParsedTcpSegment, their_maximum_segment_size: Option<MaximumSegmentSizeOption>, their_window_scale: Option<WindowScaleOption>, their_selective_acknowledgment_permitted: bool, their_timestamp: Option<TimestampsOption>, md5_authentication_key: Option<&Rc<Md5PreSharedSecretKey>>)
 	{
 		let mut our_tcp_segment = self.reuse_reversing_source_and_destination_addresses_for_tcp_segment(packet);
 		
 		let start_of_options_data_pointer = our_tcp_segment.options_data_pointer();
 		
-		let end_of_options_data_pointer =
+		let (end_of_options_data_pointer, previously_reserved_space_options_data_pointer) =
+		{
+			let mut options_data_pointer = start_of_options_data_pointer;
+			let mut previously_reserved_space_options_data_pointer = 0;
+			
+			options_data_pointer = TcpSegment::write_maximum_segment_size_option(MaximumSegmentSizeOption::maximum_segment_size_to_send_to_remote(their_maximum_segment_size, self, remote_internet_protocol_address));
+			
+			if likely(their_window_scale.is_some())
 			{
-				let mut options_data_pointer = start_of_options_data_pointer;
-				
-				if likely(their_maximum_segment_size.is_some())
-				{
-					options_data_pointer = TcpSegment::write_maximum_segment_size_option(self.our_current_maximum_segment_size_without_fragmentation(remote_internet_protocol_address))
-				}
-				
-				if likely(their_window_scale.is_some())
-				{
-					options_data_pointer = TcpSegment::write_window_scale_option(InitialWindowSize::Scale)
-				}
-				
-				if likely(their_selective_acknowledgment_permitted)
-				{
-					options_data_pointer = TcpSegment::write_selective_acknowledgment_permitted_option(options_data_pointer);
-				}
-				
-				if let Some(their_timestamp) = their_timestamp
-				{
-					options_data_pointer = TcpSegment::write_timestamps_option(options_data_pointer, Timestamping::initial_timestamps_option(their_timestamp.TSval))
-				}
-				
-				options_data_pointer
-			};
+				options_data_pointer = TcpSegment::write_window_scale_option(InitialWindowSize::Scale)
+			}
+			
+			if likely(their_selective_acknowledgment_permitted)
+			{
+				options_data_pointer = TcpSegment::write_selective_acknowledgment_permitted_option(options_data_pointer)
+			}
+			
+			if let Some(their_timestamp) = their_timestamp
+			{
+				options_data_pointer = TcpSegment::write_timestamps_option(options_data_pointer, Timestamping::initial_timestamps_option(their_timestamp.TSval))
+			}
+			
+			if md5_authentication_key.is_some()
+			{
+				previously_reserved_space_options_data_pointer = options_data_pointer;
+				options_data_pointer = TcpSegment::reserve_space_for_md5_option(options_data_pointer)
+			}
+			
+			(options_data_pointer, previously_reserved_space_options_data_pointer)
+		};
 		
-		let (padded_options_size, layer_4_packet_size) = TcpSegment::round_up_options_size_to_multiple_of_four_and_set_padding_to_zero(start_of_options_data_pointer, end_of_options_data_pointer, 0);
+		// TODO: Any payload writes.
+		let payload_size = 0;
+		
+		let (padded_options_size, layer_4_packet_size) = TcpSegment::round_up_options_size_to_multiple_of_four_and_set_padding_to_zero(start_of_options_data_pointer, end_of_options_data_pointer, payload_size);
 		
 		// TODO: Send data on a SYNACK - call the event receiver, tell them the size of segment length we have - allow them to write some data to it.
 		// TODO: Only for TCP Fast Open.
@@ -368,6 +418,11 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 			self.check_sum_layering.calculate_in_software_and_set_if_required(&mut our_tcp_segment, layer_4_packet_size, &self.local_internet_protocol_address, transmission_control_block.remote_internet_protocol_address());
 		}
 		
+		if let Some(md5_authentication_key) = md5_authentication_key
+		{
+			md5_authentication_key.deref().write_md5_option_into_previously_reserved_space(&self.local_internet_protocol_address, remote_internet_protocol_address, padded_options_size, payload_size, our_tcp_segment, previously_reserved_space_options_data_pointer);
+		}
+		
 		packet.set_layer_4_payload_length(layer_4_packet_size);
 		
 		// TODO: Send - and who frees the packet? What about re-transmission? Do we use DPDK's refcount in packets?
@@ -377,11 +432,24 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 	// See RFC 2018 but also has 1 errata https://www.rfc-editor.org/errata_search.php?rfc=2018
 	pub(crate) fn send_acknowledgment(&self, packet: TCBA::Packet, transmission_control_block: &TransmissionControlBlock<TCBA>, flags: Flags, SEQ: WrappingSequenceNumber, ACK: WrappingSequenceNumber)
 	{
+		/*
+		A TCP SHOULD implement a delayed ACK, but an ACK should not be excessively delayed; in particular, the delay MUST be less than 0.5 seconds, and in a stream of full-sized segments there SHOULD be an ACK for at least every second segment.
+		*/
 		transmission_control_block.update_Last_ACK_sent(ACK);
 		self.send_empty(packet, self.reuse_reversing_source_and_destination_addresses_for_tcp_segment(packet), transmission_control_block, flags, SEQ, ACK, None);
 	}
 	
-	pub(crate) fn send_probe_without_packet_to_reuse(&self, transmission_control_block: &TransmissionControlBlock<TCBA>) -> Result<(), ()>
+	/// Keep-Alive probes have:-
+	///
+	/// * a segment size of zero (or, for some legacy stacks, one);
+	/// * a sequence number:
+	///   * For FreeBSD, SND.UNA - 1, which causes the segment to lie outside the receive window and requires the remote to respond (Processing Incoming Segment 4.1.3 or RFC 5961 Section 5.2 will cause this to happen).
+	///   * For PicoTCP, SND.NXT - 1, which should force a duplicate acknowledgment.
+	///
+	/// A remote should then respond with with either a Acknowledgment or a Reset (if the connection is dead).
+	///
+	/// * ?Have SYN / FIN / RST set?
+	pub(crate) fn send_keep_alive_probe_without_packet_to_reuse(&self, transmission_control_block: &TransmissionControlBlock<TCBA>) -> Result<(), ()>
 	{
 		match self.create_for_tcp_segment(transmission_control_block.remote_internet_protocol_address())
 		{
@@ -390,7 +458,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 			{
 				let SND = &transmission_control_block.SND;
 				let RCV = &transmission_control_block.RCV;
-				self.send_empty(packet, our_tcp_segment, transmission_control_block, Flags::PushAcknowledgment, SND.NXT - 1, RCV.NXT, None);
+				self.send_empty(packet, our_tcp_segment, transmission_control_block, Flags::PushAcknowledgment, SND.UNA - 1, RCV.NXT, None);
 				Ok(())
 			}
 		}
@@ -425,7 +493,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 	#[inline(always)]
 	fn send_reset_common(&self, packet: TCBA::Packet, our_tcp_segment: &mut TcpSegment, transmission_control_block: &TransmissionControlBlock<TCBA>, SEQ: WrappingSequenceNumber)
 	{
-		debug_assert!(transmission_control_block.is_state_after_exchange_of_synchronized(), "We do not support sending Reset segments before the state has become Established");
+		debug_assert!(transmission_control_block.is_state_synchronized(), "We do not support sending Reset segments before the state has become Established");
 		let RCV = &transmission_control_block.RCV;
 		self.send_empty(packet, our_tcp_segment, transmission_control_block, Flags::Reset, SEQ, RCV.NXT, None)
 	}
@@ -435,7 +503,9 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 	{
 		let start_of_options_data_pointer = our_tcp_segment.options_data_pointer();
 		
-		let end_of_options_data_pointer =
+		let md5_authentication_key = transmission_control_block.md5_authentication_key();
+		
+		let (end_of_options_data_pointer, previously_reserved_space_options_data_pointer) =
 		{
 			let mut options_data_pointer = start_of_options_data_pointer;
 			
@@ -444,15 +514,24 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 				options_data_pointer = TcpSegment::write_timestamps_option(options_data_pointer, transmission_control_block.subsequent_timestamps_option())
 			}
 			
+			if md5_authentication_key.is_some()
+			{
+				previously_reserved_space_options_data_pointer = options_data_pointer;
+				options_data_pointer = TcpSegment::reserve_space_for_md5_option(options_data_pointer)
+			}
+			
+			// 12 bytes are left for SACK if using MD5.
 			if let Some(selective_acknowledgments_option) = selective_acknowledgments
 			{
 				options_data_pointer = TcpSegment::write_selective_acknowledgments_option(options_data_pointer, selective_acknowledgments_option)
 			}
 			
-			options_data_pointer
+			(options_data_pointer, previously_reserved_space_options_data_pointer)
 		};
 		
-		let (padded_options_size, layer_4_packet_size) = TcpSegment::round_up_options_size_to_multiple_of_four_and_set_padding_to_zero(start_of_options_data_pointer, end_of_options_data_pointer, 0);
+		let payload_size = 0;
+		
+		let (padded_options_size, layer_4_packet_size) = TcpSegment::round_up_options_size_to_multiple_of_four_and_set_padding_to_zero(start_of_options_data_pointer, end_of_options_data_pointer, payload_size);
 		
 		// TODO: Combine multiple ACKs.
 		// TODO: Send data on an ACK - call the event receiver, tell them the size of segment length we have - allow them to write some data to it.
@@ -460,15 +539,18 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		let space_available_for_writing_payload = transmission_control_block.maximum_segment_size_to_send_to_remote - packet.internet_protocol_options_or_extension_headers_additional_overhead() - padded_options_size;
 		
 		{
-			// TODO: Double mutable borrow (as RCV() borrow outside of this function).
+			// RFC 7323, Section 2.3: "The window field (SEG.WND) of every outgoing segment, with the exception of <SYN> segments, MUST be right-shifted by Rcv.Wind.Shift bits `SEG.WND = RCV.WND >> Rcv.Wind.Shift`".
 			let RCV = &transmission_control_block.RCV;
-			// RFC 7323, Section 2.3: "The window field (SEG.WND) of every outgoing segment, with the exception of <SYN> segments, MUST be right-shifted by Rcv.Wind.Shift bits:
-			// SEG.WND = RCV.WND >> Rcv.Wind.Shift"
-			let segment_window_size = RCV.WND >> RCV.Wind.Scale;
+			let segment_window_size = RCV.WND >> RCV.Wind.Shift;
 			
 			our_tcp_segment.set_for_send(transmission_control_block.remote_port_local_port(), SEQ, ACK, padded_options_size, Flags::Acknowledgment, segment_window_size);
 			
 			self.check_sum_layering.calculate_in_software_and_set_if_required(&mut our_tcp_segment, layer_4_packet_size, &self.local_internet_protocol_address, transmission_control_block.remote_internet_protocol_address());
+		}
+		
+		if let Some(md5_authentication_key) = md5_authentication_key
+		{
+			md5_authentication_key.deref().write_md5_option_into_previously_reserved_space(&self.local_internet_protocol_address, packet.destination_internet_protocol_address(), padded_options_size, payload_size, our_tcp_segment, previously_reserved_space_options_data_pointer);
 		}
 		
 		packet.set_layer_4_payload_length(layer_4_packet_size);
@@ -478,18 +560,16 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		// TODO: Send - and who frees the packet? What about re-transmission? Do we use DPDK's refcount in packets?
 	}
 	
-	const TcpLayer4Protocol: u8 = 6;
-	
 	#[inline(always)]
 	fn create_for_tcp_segment<'a>(&self, remote_internet_protocol_address: &TCBA::Address) -> Result<(TCBA::Packet, &'a mut TcpSegment), ()>
 	{
-		self.transmission_control_block_abstractions.create_packet(&self.local_internet_protocol_address, remote_internet_protocol_address, Self::TcpLayer4Protocol).map(|(packet, pointer_to_tcp_segment)| (packet, unsafe { &mut * (pointer_to_tcp_segment.as_ptr() as *mut TcpSegment) }))
+		self.transmission_control_block_abstractions.create_packet(&self.local_internet_protocol_address, remote_internet_protocol_address, Self::TcpLayer4ProtocolNumber).map(|(packet, pointer_to_tcp_segment)| (packet, unsafe { &mut * (pointer_to_tcp_segment.as_ptr() as *mut TcpSegment) }))
 	}
 	
 	#[inline(always)]
 	fn reuse_reversing_source_and_destination_addresses_for_tcp_segment<'a>(&self, packet: TCBA::Packet) -> &'a mut TcpSegment
 	{
-		let pointer_to_tcp_segment = self.transmission_control_block_abstractions.reuse_packet_reversing_source_and_destination_addresses(Self::TcpLayer4Protocol, packet);
+		let pointer_to_tcp_segment = self.transmission_control_block_abstractions.reuse_packet_reversing_source_and_destination_addresses(Self::TcpLayer4ProtocolNumber, packet);
 		
 		unsafe { &mut * (pointer_to_tcp_segment.as_ptr() as *mut TcpSegment) }
 	}

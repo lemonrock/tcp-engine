@@ -202,7 +202,9 @@ If the arriving segment is unacceptable then send an acknowledgment as for 4.1.3
 Note: it is necessary to send an `<ACK>` segment in order to retain TCP's mechanisms for detecting and recovering from half-open connections.  For an example, see Figure 10 of RFC 793.
 
 
-### R2: RFC 793 Page 69
+### R2: Segment is acceptable because it occupies a portion of valid receive sequence space
+
+Originally from RFC 793 Page 69:-
 
 Segments are processed in sequence. Initial tests on arrival are used to discard old duplicates, but further processing is done in `SEG.SEQ` order. If a segment's contents straddle the boundary between old and new, only the new parts should be processed.
 
@@ -254,43 +256,39 @@ In general, the processing of received segments MUST be implemented to aggregate
 ## Check the `RST` bit
 
 
-### `SYN-RECEIVED`
+### If the `RST` bit is not set
+
+Continue processing at 4.3.
 
 
-#### If the `RST` bit is set:
+### If the `RST` bit is set
+
+This logic has been updated from RFC 5961 Section 3.
+
+
+#### `SYN-SENT`
+
+In the `SYN-SENT` state (a `RST` received in response to an initial `SYN`), the `RST` is acceptable if the `ACK` field acknowledges the `SYN`. In all other cases the receiver MUST silently discard the segment.
+
+  
+#### All other states
+
+In all states except `SYN-SENT`, all reset (`RST`) segments are validated by checking their `SEQ`-fields \[sequence numbers\].  A reset is valid if its sequence number exactly matches the next expected sequence number.  If the `RST` arrives and its sequence number field does NOT match the next expected sequence number but is within the window, then the receiver should generate an `ACK`.  In all other cases, where the `SEQ`-field does not match and is outside the window, the receiver MUST silently discard the segment.
+
+
+##### `SYN-RECEIVED`
 
 If this connection was initiated with a passive OPEN (i.e., came from the `LISTEN` state), then return this connection to `LISTEN` state and return. The user need not be informed. If this connection was initiated with an active OPEN (i.e., came from `SYN-SENT ` state) then the connection was refused, signal the user "connection refused". In either case, all segments on the retransmission queue should be removed. And in the active OPEN case, enter the `CLOSED` state and delete the TCB, and return.
 
 
-#### If the `RST` bit is not set:
-
-Continue Processing at 4.3.
-
-
-### `ESTABLISHED` `FIN-WAIT-1` `FIN-WAIT-2` `CLOSE-WAIT`
-
-
-#### If the `RST` bit is set:
+##### `ESTABLISHED` `FIN-WAIT-1` `FIN-WAIT-2` `CLOSE-WAIT`
 
 Any outstanding RECEIVEs and SEND should receive "reset" responses. All segment queues should be flushed. Users should also receive an unsolicited general "connection reset" signal. Enter the `CLOSED` state, delete the TCB, and return.
 
 
-#### If the `RST` bit is not set:
-
-Continue Processing at 4.3.
-
-
-### `CLOSING` `LAST-ACK` `TIME-WAIT`
-
-
-### If the `RST` bit is set:
+##### `CLOSING` `LAST-ACK` `TIME-WAIT`
 
 Enter the `CLOSED` state, delete the TCB, and return.
-
-
-#### If the `RST` bit is not set:
-
-Continue Processing at 4.3.
 
 
 ## Check Security & Precedence
@@ -303,38 +301,26 @@ Continue Processing at 4.4.
 ## Check the `SYN` bit
 
 
-#### RFC 1122 Section 4.2.2.20 (e)
+### `SYN-RECEIVED` and connection was initiated with a passive `OPEN` (RFC 1122 Section 4.2.2.20 (e))
 
-Check `SYN` bit, p. 71:  "In `SYN-RECEIVED` state and if the connection was initiated with a passive `OPEN`, then return this connection to the `LISTEN` state and return. Otherwise..."^[It is not clear to which part of the text this statement applies].
+In `SYN-RECEIVED` state and if the connection was initiated with a passive `OPEN`, then return this connection to the `LISTEN` state and return.
 
-
-### `SYN-RECEIVED` `ESTABLISHED` `FIN-WAIT-1` `FIN-WAIT-2` `CLOSE-WAIT` `CLOSING` `LAST-ACK` `TIME-WAIT`
-
-
-#### If the `SYN` is in the window
-
-It is an error, send a reset, any outstanding RECEIVEs and SEND should receive "reset" responses, all segment queues should be flushed, the user should also receive an unsolicited general "connection reset" signal, enter the `CLOSED` state, delete the TCB, and return.
+It is not clear from RFC 1122 whether checks for the `SYN` being in the window are appropriate.
 
 
-#### If the `SYN` is not in the window
+### `ESTABLISHED` `FIN-WAIT-1` `FIN-WAIT-2` `CLOSE-WAIT` `CLOSING` `LAST-ACK` `TIME-WAIT`
 
-This step would not be reached and an ack would have been sent in the first step (sequence number check).
+This has been updated by RFC 5961 Section 4.2.
+
+If the `SYN` bit is set, irrespective of the sequence number, TCP MUST send an ACK (also referred to as challenge `ACK`) to the remote peer `<SEQ=SND.NXT><ACK=RCV.NXT><CTL=ACK>`.  After sending the acknowledgment, TCP MUST drop the unacceptable segment and stop processing further.
+
+Originally:-
+
+* If the `SYN` is in the window: It is an error, send a reset, any outstanding RECEIVEs and SEND should receive "reset" responses, all segment queues should be flushed, the user should also receive an unsolicited general "connection reset" signal, enter the `CLOSED` state, delete the TCB, and return.
+* if the `SYN` is not in the window: This step would not be reached and an ack would have been sent in the first step (sequence number check).
 
 
 ## Check the `ACK` field
-
-#### RFC 1122 Section 4.2.2.20 (f)
-
-Check `ACK` field, `SYN-RECEIVED` state, p. 72: When the connection enters `ESTABLISHED` state, the variables listed in RFC 1122 Section 4.2.2.20 (c) must be set, viz:-
-
-* `SND.WND <- SEG.WND`
-* `SND.WL1 <- SEG.SEQ`
-* `SND.WL2 <- SEG.ACK`
-
-
-#### RFC 1122 Section 4.2.2.20 (g)
-
-Check `ACK` field, `ESTABLISHED` state, p. 72: The `ACK` is a duplicate if `SEG.ACK =< SND.UNA` (the `=` was omitted). Similarly, the window should be updated if: `SND.UNA =< SEG.ACK =< SND.NXT`.
 
 
 ### If the `ACK` bit is off
@@ -350,45 +336,37 @@ Drop the segment and return
 * If [the segment acknowledgment is acceptable] (`SND.UNA < SEG.ACK <= SND.NXT`)^[The check of  `SNA.UNA` was changed by Errata 3301 from `SND.UNA <= SEG.ACK` to `SND.UNA < SEG.ACK`.] then enter `ESTABLISHED` state and continue processing (?fallthrough?).
 * If the segment acknowledgment is not acceptable, form a reset segment `<SEQ=SEG.ACK><CTL=RST>` and send it.
 
+When the connection enters `ESTABLISHED` state^[RFC 1122 Section 4.2.2.220 (f)], the variables listed in RFC 1122 Section 4.2.2.20 (c) must be set, viz:-
+
+* `SND.WND <- SEG.WND`
+* `SND.WL1 <- SEG.SEQ`
+* `SND.WL2 <- SEG.ACK`
+
 
 #### `ESTABLISHED`
 
-```
-RFC 7323 Appendix D
-               If SND.UNA < SEG.ACK <= SND.NXT then, set SND.UNA <-
- |             SEG.ACK.  Also compute a new estimate of round-trip time.
- |             If Snd.TS.OK bit is on, use Snd.TSclock - SEG.TSecr;
- |             otherwise, use the elapsed time since the first segment
- |             in the retransmission queue was sent.  Any segments on
-               the retransmission queue that are thereby entirely
-```
-* If [the segment acknowledgment is acceptable] (`SND.UNA < SEG.ACK <= SND.NXT`) then, set `SND.UNA <- SEG.ACK`. Any segments on the retransmission queue which are thereby entirely acknowledged are removed. Users should receive positive acknowledgments for buffers which have been SENT and fully acknowledged (i.e., SEND buffer should be returned with "ok" response).
-* If the `ACK` is a duplicate (`SEG.ACK < SND.UNA`), it can be ignored^[But see Errata 4785].
+The `ACK` value is considered acceptable only if it is in the range of `((SND.UNA - MAX.SND.WND) <= SEG.ACK <= SND.NXT)`. All incoming segments whose `ACK` value doesn't satisfy the above condition MUST be discarded and an `ACK`` sent back.^[RFC 5961 Section 5.]
+
+* If `SND.UNA < SEG.ACK <= SND.NXT` (the segment acknowledgment is acceptable) then, set `SND.UNA <- SEG.ACK`. Also compute a new estimate of round-trip time. If `Snd.TS.OK` bit is on, use `Snd.TSclock - SEG.TSecr`; otherwise, use the elapsed time since the first segment in the retransmission queue was sent. Any segments on the retransmission queue which are thereby entirely acknowledged are removed. Users should receive positive acknowledgments for buffers which have been SENT and fully acknowledged (i.e., SEND buffer should be returned with "ok" response).
+* If the `ACK` is a duplicate (`SEG.ACK <= SND.UNA`^[RFC1122 Section 4.2.2.20 (g) (the `=` was omitted)]), it can be ignored^[But see Errata 4785]. 
 * If the `ACK` acks something not yet sent (`SEG.ACK > SND.NXT`) then send an `ACK`, drop the segment, and return.
 
-If (`SND.UNA < SEG.ACK <= SND.NXT`)^[This can not be true if the action `SND.UNA <- UNA` was taken above], the send window should be updated. If (`SND.WL1 < SEG.SEQ` or (`SND.WL1 = SEG.SEQ and SND.WL2 <= SEG.ACK`)), set `SND.WND <- SEG.WND`, set `SND.WL1 <- SEG.SEQ`, and set `SND.WL2 <- SEG.ACK`.
+If (`SND.UNA <= SEG.ACK <= SND.NXT`)^[RFC1122 Section 4.2.2.20 (g)], the send window should be updated. If (`SND.WL1 < SEG.SEQ` or (`SND.WL1 = SEG.SEQ and SND.WL2 <= SEG.ACK`)), set `SND.WND <- SEG.WND`, set `SND.WL1 <- SEG.SEQ`, and set `SND.WL2 <- SEG.ACK`.
 
 Note that `SND.WND` is an offset from `SND.UNA`, that `SND.WL1` records the sequence number of the last segment used to update `SND.WND`, and that `SND.WL2` records the acknowledgment number of the last segment used to update `SND.WND`. The check here prevents using old segments to update the window.
 
 
 ##### Errata 4785
 
-Suggested replacement text is "If the `ACK` is a duplicate (`SEG.ACK <= SND.UNA`), it can be ignored except when equality is met, then window should be updated. This can happen when there are segments in flight but the receiver shrinks its `RCV.BUF` to drop all of them and send an `ACK` carrying zero window update. Upon its arrival at the sending TCP, condition `SND.UNA = SEG.ACK` is met and we must update `SND.WND <- 0`. Then sender starts persist timer for sending zero-window probes ^[RFC 1122 Section 4.2.2.17, page 92].
+If the `ACK` is a duplicate (`SEG.ACK <= SND.UNA`), it can be ignored except when equality is met (`SEG.ACK = SND.UNA`). This can occur when:-
 
-###### Notes:
+* there are segments in flight;
+* the receiver shrinks `RCV.BUF` such that all of these segments would drop;
+* the reciever sends an `ACK` with a `WND` of zero (a window update `ACK`)
 
-The condition is corrected as Duplicate `ACK` in RFC 1122, Section 4.2.2.20 (g) p. 94. Accordingly old text must be modified and new text should also be present to support the corrected condition in RFC 793.
+If the window is zero then the senderr starts a persist timer for sending zero-window probes ^[RFC 1122 Section 4.2.2.17, page 92].
 
-This is one case where duplicate acknowledgment cannot be ignored. i.e. when `SEG.ACK == SND.UNA` and advertised window in the incoming `ACK` is `0`
-in which case sender needs to:
-
-1. update window
-2. start persist timer
-3. send zero window probe segments.
-
-###### Notes:
-
-Such `ACK`s should not be called as duplicates as it fails condition (e) of definition of "DUPLICATE ACKNOWLEDGMENT" in RFC 5681 Section 2, pg 4.
+See also the definition of "DUPLICATE ACKNOWLEDGMENT" in RFC 5681 Section 2 Page 4.
 
 
 #### `FIN-WAIT-1`
@@ -435,7 +413,7 @@ If the `URG` bit is set, `RCV.UP <- max(RCV.UP,SEG.UP)`, and signal the user tha
 This should not occur, since a `FIN` has been received from the remote side. Ignore the `URG`.
 
 
-## Process the Segment Text (Payload)
+## Process the Segment Text
 
 
 ### `ESTABLISHED` `FIN-WAIT-1` `FIN-WAIT-2`
@@ -448,7 +426,7 @@ Once the TCP takes responsibility for the data it advances `RCV.NXT` over the da
 
 Please note the window management suggestions in section 3.7.
 
-Send an acknowledgment of the form: `<SEQ=SND.NXT><ACK=RCV.NXT><CTL=ACK>`. This acknowledgment should be piggybacked on a segment being transmitted if possible without incurring undue delay.
+Send an acknowledgment of the form: `<SEQ=SND.NXT><ACK=RCV.NXT><CTL=ACK>`. If the `Snd.TS.OK` bit is on, include the Timestamps option `<TSval=Snd.TSclock,TSecr=TS.Recent>` in this `<ACK>` segment. Set `Last.ACK.sent` to `SEG.ACK` of the acknowledgment, and send it^[RFC 7323 Appendix D]. This acknowledgment should be piggybacked on a segment being transmitted if possible without incurring undue delay.
 
 
 ### `CLOSE-WAIT` `CLOSING` `LAST-ACK` `TIME-WAIT`
@@ -482,15 +460,6 @@ If our `FIN` has been `ACK`ed (perhaps in this segment), then enter `TIME-WAIT`,
 
 
 #### `FIN-WAIT-2`
-
-```
-RFC 7323 Appendix D
- |          If the Snd.TS.OK bit is on, include the Timestamps option
- |          <TSval=Snd.TSclock,TSecr=TS.Recent> in this <ACK> segment.
- |          Set Last.ACK.sent to SEG.ACK of the acknowledgment, and send
- |          it.  This acknowledgment should be piggybacked on a segment
-            being transmitted if possible without incurring undue delay.
-```
 
 Enter the `TIME-WAIT` state. Start the time-wait timer, turn off the other timers.
 

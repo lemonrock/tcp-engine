@@ -21,10 +21,10 @@ pub(crate) struct TransmissionControlBlockSend
 	/// The range of new sequence numbers which may be emitted by a TCP lies between SND.NXT and SND.UNA + SND.WND - 1.
 	/// (Retransmissions of sequence numbers between SND.UNA and SND.NXT are expected, of course)".
 	///
-	/// As of RFC 1323, Section 2, page 10, this is now the value left-shifted by `Snd.Wind.Scale` bits.
+	/// As of RFC 1323, Section 2, page 10, this is now the value left-shifted by `Snd.Wind.Shift` bits.
 	pub(crate) WND: WindowSize,
 
-	/// RFC 1323, Section 2, page 10: "The connection state is augmented by two window shift counts, Snd.Wind.Scale and Rcv.Wind.Scale, to be applied to the incoming and outgoing window fields, respectively."
+	/// RFC 1323, Section 2, page 10: "The connection state is augmented by two window shift counts, Snd.Wind.Shift and Rcv.Wind.Shift, to be applied to the incoming and outgoing window fields, respectively."
 	pub(crate) Wind: Wind,
 	
 	/// RFC 793, Page 19: "segment sequence number used for last window update".

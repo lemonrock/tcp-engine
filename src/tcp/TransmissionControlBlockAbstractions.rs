@@ -36,6 +36,10 @@ pub trait TransmissionControlBlockAbstractions: Sized
 	
 	/// Used specifically when setting TCP maximum segment size option.
 	///
+	/// Intended to be implemented as a combination of a cache of `PathMTU` and a set of known, fixed values, perhaps implemented using a routing table such as `IpLookupTable` (in the crate `treebitmap`).
+	///
+	/// A suitable cache is `LeastRecentlyUsedCacheWithExpiry`.
+	///
 	/// If there is no specific entry in the cache, an implementation can use `Self::Address::DefaultPathMaximumTransmissionUnitSize`.
 	#[inline(always)]
 	fn current_path_maximum_transmission_unit(&self, remote_internet_protocol_address: &Self::Address) -> u16;

@@ -43,4 +43,10 @@ impl WindowSize
 	{
 		WindowSize(window_size)
 	}
+	
+	#[inline(always)]
+	pub(crate) fn is_zero(self) -> bool
+	{
+		self.0 == Self::Zero.0
+	}
 }

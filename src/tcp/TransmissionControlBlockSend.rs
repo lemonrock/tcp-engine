@@ -14,6 +14,12 @@ pub(crate) struct TransmissionControlBlockSend
 	///
 	/// RFC 793, Glossary, page 83, expands this to call it the 'send sequence': "This is the next sequence number the local (sending) TCP will use on the connection.
 	/// It is initially selected from an initial sequence number curve (ISN) and is incremented for each octet of data or sequenced control transmitted".
+	///
+	/// RFC 4015 Section 1.1 Paragraph 3: "SND.NXT holds the segment sequence number of the next segment the TCP sender will (re-)transmit ... we define as 'SND.MAX' the segment sequence number of the next original transmit to be sent
+	///
+	/// The definition of SND.MAX is equivalent to the definition of 'snd_max' in [Wright, G. R. and W. R. Stevens, TCP/IP Illustrated, Volume 2 (The Implementation), Addison Wesley, January 1995]()".
+	///
+	/// It is worth noting that our definition of `SND.NXT` is actually the definition of `snd_max` in FreeBSD (and the above book).
 	pub(crate) NXT: WrappingSequenceNumber,
 	
 	/// RFC 793, Glossary, page 83 expands this to call it the 'send window': "This represents the sequence numbers which the remote (receiving) TCP is willing to receive.
@@ -21,7 +27,7 @@ pub(crate) struct TransmissionControlBlockSend
 	/// The range of new sequence numbers which may be emitted by a TCP lies between SND.NXT and SND.UNA + SND.WND - 1.
 	/// (Retransmissions of sequence numbers between SND.UNA and SND.NXT are expected, of course)".
 	///
-	/// As of RFC 1323, Section 2, page 10, this is now the value left-shifted by `Snd.Wind.Shift` bits.
+	/// As of RFC 7323, Section 2.2 this is now the value left-shifted by `Snd.Wind.Shift` bits.
 	pub(crate) WND: WindowSize,
 
 	/// RFC 1323, Section 2, page 10: "The connection state is augmented by two window shift counts, Snd.Wind.Shift and Rcv.Wind.Shift, to be applied to the incoming and outgoing window fields, respectively."

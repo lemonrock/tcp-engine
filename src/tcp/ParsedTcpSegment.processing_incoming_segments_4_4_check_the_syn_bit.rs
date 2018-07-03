@@ -12,7 +12,9 @@ macro_rules! processing_incoming_segments_4_4_check_the_syn_bit
 			// RFC 5961 Section 4.2: "... handling of the SYN in the synchronized state SHOULD be performed as follows:
 			// If the SYN bit is set, irrespective of the sequence number, TCP MUST send an ACK (also referred to as challenge ACK) to the remote peer <SEQ=SND.NXT><ACK=RCV.NXT><CTL=ACK>.
 			// After sending the acknowledgment, TCP MUST drop the unacceptable segment and stop processing further".
-			$self.interface.send_challenge_acknowledgment($self.reuse_packet(), $transmission_control_block);
+			//
+			// This diverges from RFC 793 / Processing Incoming Segments 4.4.2.
+			$self.interface.send_challenge_acknowledgment($self.reuse_packet(), $transmission_control_block, $self.now);
 			return
 		}
 	}

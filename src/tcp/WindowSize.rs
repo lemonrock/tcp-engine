@@ -38,6 +38,8 @@ impl WindowSize
 {
 	pub(crate) const Zero: WindowSize = WindowSize(0);
 	
+	pub(crate) const Maximum: WindowSize = WindowSize(65_535 << WindowScaleOption::Maximum.0);
+	
 	#[inline(always)]
 	pub(crate) const fn new(window_size: u32) -> Self
 	{

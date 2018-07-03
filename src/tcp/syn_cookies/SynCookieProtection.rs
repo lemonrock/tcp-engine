@@ -22,15 +22,16 @@
 ///
 /// ```
 /// Bit Index:    0  1  2  3  4  5  6  7  8  9  10  11  12  13  14  15  16  17  18  19  20  21  22  23  24  25  26  27  28  29  30  31
-/// Bit Meaning:  x  x  x  x  x  x  x  x  x  x   x   x   x   x   x   x   x   x   x   x   x   x   x   x   W   W   W   m   m   m   S   p
+/// Bit Meaning:  x  x  x  x  x  x  x  x  x  x   x   x   x   x   x   x   x   x   x   x   x   x   x   W   W   W   m   m   m   S   E   p
 /// ```
 ///
 /// Where:-
 ///
-/// * `x` is a 24-bit, truncated message authentication code (MAC)
+/// * `x` is a 23-bit, truncated message authentication code (MAC) (XOR of 2 32-bit values, then truncated to 32-bits).
 /// * `W` is a 3-bit unsigned index into a known table of window scale values.
 /// * `m` is a 3-bit unsigned index into a known table of maximum segment size values.
 /// * `S` is a 1-bit boolean value, which, if set, indicates selective acknowledgment (SACK) is permitted.
+/// * `E` is a 1-bit boolean value, which, if set, indicates support for explicit congestion notification (ECN) is permitted.
 /// * `P` is a 1-bit unsigned index indicating which of two secret keys are used
 ///
 /// To prevent replay attacks two secret keys are maintained for the message authentication code (MAC), a current one and a retired one.
@@ -52,7 +53,7 @@
 ///
 /// The first attack must be completed in less than thirty seconds.
 ///
-/// The second attack requires an average of 4,823 attempts for a 50% chance of success (the Birthday paradox), and a way for the attacker to infer success of his spoofed packets using a side-channel. For a sustained rate of 100 spoofed connections per second approximately 1,800,000 packets per second would have to be sent.
+/// The second attack requires an average of 2,411 attempts for a 50% chance of success (the Birthday paradox), and a way for the attacker to infer success of his spoofed packets using a side-channel. For a sustained rate of 100 spoofed connections per second approximately 900,000 packets per second would have to be sent.
 ///
 /// The third is not known to be possible with SIP-HASH-2-4, the current message authentication code (MAC) function.
 #[derive(Default, Debug)]
@@ -67,17 +68,32 @@ impl SynCookieProtection
 {
 	const RotateKeysAfterThisManyMilliseconds: MillisecondDuration = MillisecondDuration::FifteenSeconds;
 	
-	const TcpOptionsMask: u32 = 0x000000FF;
+	const TotalBits: u32 = 32;
+	
+	const MessageAuthenticationCodeBits: u32 = 23;
+	
+	const TcpOptionsMask: u32 = (1 << (Self::TotalBits - Self::MessageAuthenticationCodeBits)) - 1;
 	
 	const MessageAuthenticationCodeMask: u32 = !Self::TcpOptionsMask;
 	
-	const MessageAuthenticationCodeBits: u32 = 24;
+	const TcpOptionsStartAtBit: u32 = Self::TotalBits - Self::MessageAuthenticationCodeBits;
 	
-	const MaximumSegmentSizeIndexBitShift: u8 = 5;
+	const MaximumSegmentSizeBits: u32 = 3;
+	const MaximumSegmentSizeIndexBitShift: u8 = (Self::TcpOptionsStartAtBit - Self::MaximumSegmentSizeBits) as u8;
+	const MaximumSegmentSizeIndexBitMask: u32 = ((1 << Self::MaximumSegmentSizeBits) - 1) << (Self::MaximumSegmentSizeIndexBitShift as u32);
 	
-	const WindowScaleIndexBitShift: u8 = 2;
+	const WindowScaleIndexBits: u32 = 3;
+	const WindowScaleIndexBitShift: u8 = (Self::TcpOptionsStartAtBit - Self::MaximumSegmentSizeBits - Self::WindowScaleIndexBits) as u8;
+	const WindowScaleIndexIndexBitMask: u32 = ((1 << Self::WindowScaleIndexBits) - 1) << (Self::WindowScaleIndexBitShift as u32);
 	
-	const SelectiveAcknowledgmentPermittedBit: u8 = 1 << 1;
+	const SelectiveAcknowledgmentPermittedBits: u32 = 1;
+	const SelectiveAcknowledgmentPermittedBit: u8 = (Self::SelectiveAcknowledgmentPermittedBits << (Self::TcpOptionsStartAtBit - Self::MaximumSegmentSizeBits - Self::WindowScaleIndexBits - Self::SelectiveAcknowledgmentPermittedBits)) as u8;
+	
+	const ExplicitCongestionNotificationPermittedBits: u32 = 1;
+	const ExplicitCongestionNotificationPermittedBit: u8 = (Self::ExplicitCongestionNotificationPermittedBits << (Self::TcpOptionsStartAtBit - Self::MaximumSegmentSizeBits - Self::WindowScaleIndexBits - Self::SelectiveAcknowledgmentPermittedBits - Self::ExplicitCongestionNotificationPermittedBits)) as u8;
+	
+	const SecretKeyIndexBits: u32 = 1;
+	const SecretKeyIndexBit: u8 = (SecretKeyIndexBits << 0) as u8;
 	
 	#[inline(always)]
 	pub(crate) fn new(now: MonotonicMillisecondTimestamp) -> Self
@@ -92,38 +108,44 @@ impl SynCookieProtection
 	
 	/// Creates an initial sequence number suitable for a SynchronizeAcknowledgment.
 	#[inline(always)]
-	pub(crate) fn create_syn_cookie_for_synchronize_acnowledgment<Address: InternetProtocolAddress>(&self, now: MonotonicMillisecondTimestamp, source_internet_protocol_address: &Address, destination_internet_protocol_address: &Address, SEG: &ParsedTcpSegment, SEG_maximum_segment_size: Option<MaximumSegmentSizeOption>, SEQ_window_scale: Option<WindowScaleOption>, selective_acknowledgment_permitted: bool) -> WrappingSequenceNumber
+	pub(crate) fn create_syn_cookie_for_synchronize_acnowledgment<Address: InternetProtocolAddress>(&self, now: MonotonicMillisecondTimestamp, source_internet_protocol_address: &Address, destination_internet_protocol_address: &Address, SEG: &ParsedTcpSegment, SEG_maximum_segment_size: Option<MaximumSegmentSizeOption>, SEQ_window_scale: Option<WindowScaleOption>, selective_acknowledgment_permitted: bool, explicit_congestion_notification_supported: bool) -> WrappingSequenceNumber
 	{
 		self.rotate_secret_keys_if_required(now);
 		
-		let (tcp_options, current_secret_key_index) = self.tcp_options::<Address>(SEG_maximum_segment_size, SEQ_window_scale, selective_acknowledgment_permitted);
+		let (tcp_options, current_secret_key_index) = self.tcp_options::<Address>(SEG_maximum_segment_size, SEQ_window_scale, selective_acknowledgment_permitted, explicit_congestion_notification_supported);
 		
-		let message_authentication_code = self.message_authentication_code(current_secret_key_index, source_internet_protocol_address, destination_internet_protocol_address, SEG.source_port_destination_port(), SEG.SEQ(), tcp_options);
+		let IRS = SEG.SEQ();
+		
+		let message_authentication_code = self.message_authentication_code(current_secret_key_index, source_internet_protocol_address, destination_internet_protocol_address, SEG.source_port_destination_port(), IRS, tcp_options);
 		
 		// Add the `tcp_options` by XOR against the `message_authentication_code` which:-
+		//
 		// * Allows us to pass them back to ourselves;
 		// * Increases initial sequence number variance;
-		// * Does not enhance cryptographic strength;
-		// * Makes sure the `tcp_options` are not clearly visible on the wire;
-		let message_authentication_code_top_24_bits = message_authentication_code & Self::MessageAuthenticationCodeMask;
+		// * Makes sure the `tcp_options` are not clearly visible on the wire.
+		//
+		// This does not enhance cryptographic strength.
+		let message_authentication_code_top_23_bits = message_authentication_code & Self::MessageAuthenticationCodeMask;
 		let tcp_options_xored_against_message_authentication_code = (tcp_options as u32) ^ (message_authentication_code >> Self::MessageAuthenticationCodeBits);
 		
-		WrappingSequenceNumber::from(message_authentication_code_top_24_bits | tcp_options_xored_against_message_authentication_code)
+		WrappingSequenceNumber::from(message_authentication_code_top_23_bits | tcp_options_xored_against_message_authentication_code)
 	}
 	
 	#[inline(always)]
 	pub(crate) fn validate_syncookie_in_acknowledgment<Address: InternetProtocolAddress>(&self, source_internet_protocol_address: &Address, destination_internet_protocol_address: &Address, SEG: &ParsedTcpSegment) -> Result<ParsedSynCookie, ()>
 	{
-		let possible_their_initial_sequence_number = SEG.SEQ - 1;
-		let possible_our_initial_sequence_number: u32 = (SEG.ACK - 1).into();
+		let ISS = SEG.ACK() - 1;
+		let IRS = SEG.SEQ() - 1;
 		
-		let tcp_options = ((possible_our_initial_sequence_number & Self::TcpOptionsMask) ^ (possible_our_initial_sequence_number >> Self::MessageAuthenticationCodeBits)) as u8;
+		let syncookie: u32 = ISS.into();
 		
-		let secret_key_index = (tcp_options & 0x1) as u64;
+		let tcp_options = ((syncookie & Self::TcpOptionsMask) ^ (syncookie >> Self::MessageAuthenticationCodeBits)) as u8;
 		
-		let message_authentication_code = self.message_authentication_code(secret_key_index, source_internet_protocol_address, destination_internet_protocol_address, SEG.source_port_destination_port(), possible_their_initial_sequence_number, tcp_options);
+		let secret_key_index = (tcp_options & Self::SecretKeyIndexBit) as u64;
 		
-		let recomputed_message_authentication_code_matches_that_from_sender = (possible_our_initial_sequence_number & Self::MessageAuthenticationCodeMask) == (message_authentication_code & Self::MessageAuthenticationCodeMask);
+		let message_authentication_code = self.message_authentication_code(secret_key_index, source_internet_protocol_address, destination_internet_protocol_address, SEG.source_port_destination_port(), IRS, tcp_options);
+		
+		let recomputed_message_authentication_code_matches_that_from_sender = (syncookie & Self::MessageAuthenticationCodeMask) == (message_authentication_code & Self::MessageAuthenticationCodeMask);
 		
 		if likely(recomputed_message_authentication_code_matches_that_from_sender)
 		{
@@ -131,11 +153,12 @@ impl SynCookieProtection
 			(
 				ParsedSynCookie
 				{
-					IRS: possible_their_initial_sequence_number,
-					ISS: WrappingSequenceNumber::from(possible_our_initial_sequence_number),
-					their_maximum_segment_size: SortedCommonMaximumSegmentSizes::new::<Address>().decode_maximum_segment_size_from_index(tcp_options & 0b1110_0000 >> Self::MaximumSegmentSizeIndexBitShift),
-					their_window_scale: SortedCommonWindowScales::new::<Address>().decode_window_scale_from_index(tcp_options & 0b0001_1100 >> Self::WindowScaleIndexBitShift),
+					IRS,
+					ISS,
+					their_maximum_segment_size: SortedCommonMaximumSegmentSizes::new::<Address>().decode_maximum_segment_size_from_index(tcp_options & Self::MaximumSegmentSizeIndexBitMask >> Self::MaximumSegmentSizeIndexBitShift),
+					their_window_scale: SortedCommonWindowScales::new::<Address>().decode_window_scale_from_index(tcp_options & Self::WindowScaleIndexIndexBitMask >> Self::WindowScaleIndexBitShift),
 					their_selective_acknowledgment_permitted: tcp_options & Self::SelectiveAcknowledgmentPermittedBit != 0,
+					explicit_congestion_notification_supported: tcp_options & Self::ExplicitCongestionNotificationPermittedBit != 0,
 				}
 			)
 		}
@@ -178,14 +201,18 @@ impl SynCookieProtection
 		}
 	}
 	
+	/// IRS is the Initial Receiver Sequence number.
+	///
+	/// RFC 793, Glossary, Page 80: "The Initial Receive Sequence number.
+	/// The first sequence number used by the sender on a connection".
 	#[inline(always)]
-	fn message_authentication_code<Address: InternetProtocolAddress>(&self, secret_key_index: u64, source_internet_protocol_address: &Address, destination_internet_protocol_address: &Address, source_port_destination_port: SourcePortDestinationPort, sequence_number: WrappingSequenceNumber, tcp_options: u8) -> u32
+	fn message_authentication_code<Address: InternetProtocolAddress>(&self, secret_key_index: u64, source_internet_protocol_address: &Address, destination_internet_protocol_address: &Address, source_port_destination_port: SourcePortDestinationPort, IRS: WrappingSequenceNumber, tcp_options: u8) -> u32
 	{
 		let mut sip_hasher = self.secret_key_for_index(secret_key_index).new_hasher();
 		source_internet_protocol_address.write_to_hash(&mut sip_hasher);
 		destination_internet_protocol_address.write_to_hash(&mut sip_hasher);
 		sip_hasher.write_u32(source_port_destination_port.to_big_endian_u32());
-		sip_hasher.write_u32(sequence_number.into());
+		sip_hasher.write_u32(IRS.into());
 		sip_hasher.write_u8(tcp_options);
 		let sip_hash = sip_hasher.finish();
 		
@@ -196,7 +223,7 @@ impl SynCookieProtection
 	}
 	
 	#[inline(always)]
-	fn tcp_options<Address: InternetProtocolAddress>(&self, maximum_segment_size: Option<MaximumSegmentSizeOption>, window_scale: Option<WindowScaleOption>, selective_acknowledgment_permitted: bool) -> (u8, u64)
+	fn tcp_options<Address: InternetProtocolAddress>(&self, maximum_segment_size: Option<MaximumSegmentSizeOption>, window_scale: Option<WindowScaleOption>, selective_acknowledgment_permitted: bool, explicit_congestion_notification_supported: bool) -> (u8, u64)
 	{
 		let mut tcp_options;
 		
@@ -209,6 +236,11 @@ impl SynCookieProtection
 		if selective_acknowledgment_permitted
 		{
 			tcp_options |= Self::SelectiveAcknowledgmentPermittedBit;
+		}
+		
+		if explicit_congestion_notification_supported
+		{
+			tcp_options |= Self::ExplicitCongestionNotificationPermittedBit;
 		}
 		
 		let current_secret_key_index = self.current_secret_key_index();

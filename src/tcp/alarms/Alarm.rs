@@ -41,6 +41,12 @@ impl<AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstractions> Alarm<AB, T
 	const RingSlotIndexForUnscheduledAlarm: u16 = (NumberOfRingSlotsForAlarmsSoonToGoOffCompilerHack + 1) as u16;
 	
 	#[inline(always)]
+	pub(crate) fn alarm_behaviour_mutable_reference(&mut self) -> &mut AB
+	{
+		&mut self.alarm_behaviour
+	}
+	
+	#[inline(always)]
 	pub(crate) fn is_scheduled(&self) -> bool
 	{
 		debug_assert!(self.compressed_ring_slot_index <= Self::RingSlotIndexForUnscheduledAlarm, "Invalid value for compressed_ring_slot_index '{}'", self.compressed_ring_slot_index);
@@ -87,6 +93,8 @@ impl<AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstractions> Alarm<AB, T
 	#[inline(always)]
 	pub(crate) fn schedule(&mut self, alarms: &Alarms<TCBA>, goes_off_in_ticks: TickDuration)
 	{
+		debug_assert!(self.is_cancelled(), "alarm is already scheduled");
+		
 		let alarm_wheel = AB::alarm_wheel(alarms);
 		
 		alarm_wheel.schedule_alarm(goes_off_in_ticks, self);

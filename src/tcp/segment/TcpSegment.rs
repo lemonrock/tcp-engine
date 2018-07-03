@@ -102,6 +102,13 @@ impl TcpSegment
 		flags.remove(Flags::ExplicitCongestionEcho | Flags::CongestionWindowReduced | Flags::Push | Flags::Urgent);
 		flags
 	}
+	#[inline(always)]
+	pub(crate) fn syn_ack_fin_rst_ece_cwr_only_flags(&self) -> Flags
+	{
+		let mut flags = self.all_flags();
+		flags.remove(Flags::Push | Flags::Urgent);
+		flags
+	}
 	
 	#[inline(always)]
 	pub(crate) fn raw_data_length_bytes(&self) -> u8
@@ -137,6 +144,13 @@ impl TcpSegment
 	pub(crate) fn set_check_sum(&mut self, check_sum: Rfc1071CompliantCheckSum)
 	{
 		self.tcp_fixed_header.checksum = check_sum.into();
+	}
+	
+	/// RFC 3168 Section 6.1.2 Paragraph 5: "... the CWR bit in the TCP header SHOULD NOT be set on retransmitted packets".
+	#[inline(always)]
+	pub(crate) fn clear_congestion_window_reduced_flag(&mut self)
+	{
+		self.tcp_fixed_header.flags.remove(Flags::CongestionWindowReduced)
 	}
 	
 	#[inline(always)]
@@ -182,58 +196,45 @@ impl TcpSegment
 	}
 	
 	#[inline(always)]
-	pub(crate) fn write_selective_acknowledgments_option(options_data_pointer: usize, selective_acknowledgments_option: SelectiveAcknowledgmentsOption) -> usize
+	pub(crate) fn write_selective_acknowledgments_option(options_data_pointer: usize, selective_acknowledgments_block: SelectiveAcknowledgmentBlock) -> usize
 	{
-		let option_length = selective_acknowledgments_option.option_length();
-		
-		let start_of_selective_acknowledgment_blocks_pointer = Self::write_option(options_data_pointer, SelectiveAcknowledgmentOption::Kind, option_length, ());
-		
-		unsafe
-		{
-			((options_data_pointer + 2) as *mut T).write_unaligned(selective_acknowledgments_option.first_block());
-			
-			match selective_acknowledgments_option.number_of_blocks()
-			{
-				1 =>
-				{
-				}
-				
-				2 =>
-				{
-					((options_data_pointer + 10) as *mut T).write_unaligned(selective_acknowledgments_option.second_block());
-				}
-				
-				3 =>
-				{
-					((options_data_pointer + 10) as *mut T).write_unaligned(selective_acknowledgments_option.second_block());
-					((options_data_pointer + 18) as *mut T).write_unaligned(selective_acknowledgments_option.third_block())
-				}
-				
-				4 =>
-				{
-					((options_data_pointer + 10) as *mut T).write_unaligned(selective_acknowledgments_option.second_block());
-					((options_data_pointer + 18) as *mut T).write_unaligned(selective_acknowledgments_option.third_block());
-					((options_data_pointer + 26) as *mut T).write_unaligned(selective_acknowledgments_option.fourth_block())
-				}
-				
-				_ => unreachable!(),
-			}
-		}
-		
-		options_data_pointer + option_length
+		Self::write_option(options_data_pointer, SelectiveAcknowledgmentOption::Kind, SelectiveAcknowledgmentOption::OneBlockLength, selective_acknowledgments_block)
 	}
 	
 	#[inline(always)]
-	pub(crate) fn round_up_options_size_to_multiple_of_four_and_set_padding_to_zero(start_of_options_data_pointer: usize, end_of_options_data_pointer: usize, payload_size: usize) -> (usize, usize)
+	fn options_size_is_not_a_multiple_of_four(options_size: usize) -> bool
+	{
+		debug_assert!(options_size <= 40, "options_size '{}' exceeds maximum of 40", options_size);
+		options_size & 0b11 != 0
+	}
+	
+	#[inline(always)]
+	fn round_up_options_size_if_not_a_multiple_of_four(options_size: usize) -> usize
+	{
+		(options_size & !0b11) + 4
+	}
+	
+	#[inline(always)]
+	pub(crate) fn round_up_options_size_to_multiple_of_four(options_size: usize) -> usize
+	{
+		if Self::options_size_is_not_a_multiple_of_four(options_size)
+		{
+			Self::round_up_options_size_if_not_a_multiple_of_four(options_size)
+		}
+		else
+		{
+			options_size
+		}
+	}
+	
+	#[inline(always)]
+	pub(crate) fn round_up_options_size_to_multiple_of_four_and_set_padding_to_zero(start_of_options_data_pointer: usize, end_of_options_data_pointer: usize) -> usize
 	{
 		let options_size = end_of_options_data_pointer - start_of_options_data_pointer;
-		debug_assert!(options_size <= 40, "options_size '{}' exceeds maximum of 40", options_size);
 		
-		let is_not_a_multiple_of_four = options_size & 0b11 != 0;
-		
-		let padded_options_size = if is_not_a_multiple_of_four
+		if Self::options_size_is_not_a_multiple_of_four(options_size)
 		{
-			let rounded_up_to_a_multiple_of_four = (options_size & !0b11) + 4;
+			let rounded_up_to_a_multiple_of_four = Self::round_up_options_size_if_not_a_multiple_of_four(options_size);
 			
 			let number_of_padding_bytes_to_set_to_zero = rounded_up_to_a_multiple_of_four - options_size;
 			unsafe { (end_of_options_data_pointer as *mut u8).write_bytes(0x00, number_of_padding_bytes_to_set_to_zero) }
@@ -243,10 +244,13 @@ impl TcpSegment
 		else
 		{
 			options_size
-		};
-		
-		let layer_4_packet_size = size_of::<TcpFixedHeader>() + padded_options_size + payload_size;
-		(padded_options_size, layer_4_packet_size)
+		}
+	}
+	
+	#[inline(always)]
+	pub(crate) fn layer_4_packet_size(padded_options_size: usize, payload_size: usize) -> usize
+	{
+		size_of::<TcpFixedHeader>() + padded_options_size + payload_size
 	}
 	
 	#[inline(always)]

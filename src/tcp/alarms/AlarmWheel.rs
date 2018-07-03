@@ -46,6 +46,8 @@ impl<AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstractions> AlarmWheel<
 	#[inline(always)]
 	pub(crate) fn schedule_alarm(&self, goes_off_in_ticks: TickDuration, alarm_to_schedule: &mut Alarm<AB, TCBA>)
 	{
+		debug_assert!(alarm_to_schedule.is_cancelled(), "alarm_to_schedule is already scheduled");
+		
 		let (minimum_goes_off_in_ticks, ring_slot_index) =
 		{
 			let goes_off_in_ticks = min(goes_off_in_ticks, Self::InclusiveMaximumGoesOffInTicks);
@@ -66,16 +68,6 @@ impl<AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstractions> AlarmWheel<
 		}
 		
 		self.push_alarm(ring_slot_index, alarm_to_schedule);
-	}
-	
-	#[inline(always)]
-	pub(crate) fn push_alarm(&self, ring_slot_index: usize, alarm_to_schedule: &mut Alarm<AB, TCBA>)
-	{
-		let alarm_list = self.get_expiring_soon_alarm_list(ring_slot_index);
-		
-		alarm_to_schedule.set_ring_slot_index(ring_slot_index);
-		
-		alarm_list.push(alarm_to_schedule);
 	}
 	
 	/// Ideally, once this once per tick.
@@ -108,6 +100,16 @@ impl<AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstractions> AlarmWheel<
 			ring_slot_index = ring_slot_index.wrapping_add(1);
 			expired_tick += 1;
 		}
+	}
+	
+	#[inline(always)]
+	fn push_alarm(&self, ring_slot_index: usize, alarm_to_schedule: &mut Alarm<AB, TCBA>)
+	{
+		let alarm_list = self.get_expiring_soon_alarm_list(ring_slot_index);
+		
+		alarm_to_schedule.set_ring_slot_index(ring_slot_index);
+		
+		alarm_list.push(alarm_to_schedule);
 	}
 	
 	#[inline(always)]

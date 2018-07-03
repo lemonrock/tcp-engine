@@ -2,15 +2,12 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
-use super::*;
-
-
-include!("Alarm.rs");
-include!("AlarmBehaviour.rs");
-include!("AlarmList.rs");
-include!("AlarmWheel.rs");
-include!("DereferenceUnchecked.rs");
-include!("KeepAliveAlarmBehaviour.rs");
-include!("UserTimeOutAlarmBehaviour.rs");
-include!("RetransmissionTimeOut.rs");
-include!("RetransmissionTimeOutAlarmBehaviour.rs");
+macro_rules! increment_statistic
+{
+    ($self: ident, $statistic_name: tt) =>
+    {
+        {
+            $self.interface.statistics.$statistic_name.set($self.interface.statistics.$statistic_name.get() + 1)
+        }
+    }
+}

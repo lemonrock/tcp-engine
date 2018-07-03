@@ -12,7 +12,7 @@ macro_rules! check_sequence_number_segment_is_unacceptable
 				let SND = &$transmission_control_block.SND;
 				let RCV = &$transmission_control_block.RCV;
 				
-				$self.interface.send_acknowledgment($self.reuse_packet(), $transmission_control_block, Flags::Acknowledgment, SND.NXT, RCV.NXT);
+				$self.interface.send_acknowledgment($self.reuse_packet(), $transmission_control_block, $self.now, Flags::Acknowledgment, SND.NXT, RCV.NXT);
 			}
 			invalid!($self, $reason)
 		}

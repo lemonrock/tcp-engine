@@ -2,15 +2,14 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
-use super::*;
-
-
-include!("Alarm.rs");
-include!("AlarmBehaviour.rs");
-include!("AlarmList.rs");
-include!("AlarmWheel.rs");
-include!("DereferenceUnchecked.rs");
-include!("KeepAliveAlarmBehaviour.rs");
-include!("UserTimeOutAlarmBehaviour.rs");
-include!("RetransmissionTimeOut.rs");
-include!("RetransmissionTimeOutAlarmBehaviour.rs");
+macro_rules! reject_synchronize_finish
+{
+	($self: expr) =>
+	{
+		if $self.all_flags().contains(Flags::SynchronizeFinish)
+		{
+			let SEG = $self;
+			invalid!(SEG, "Segments with the Synchronize and Finish flags both set were only valid in the historic T/TCP RFC 1644")
+		}
+	}
+}

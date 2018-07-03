@@ -6,10 +6,9 @@
 pub(crate) struct CachedCongestionData
 {
 	retransmission_time_out: RetransmissionTimeOut,
+	
+	// RFC 5681: Section 3.1: "... the slow start threshold (ssthresh), is used to determine whether the slow start or congestion avoidance algorithm is used to control data transmission ..."
 	ssthresh: u32,
-	cwnd: u32,
-	send_pipe: u32,
-	receive_pipe: u32,
 }
 
 impl Default for CachedCongestionData
@@ -26,22 +25,17 @@ impl CachedCongestionData
 	const Default: Self = Self
 	{
 		retransmission_time_out: RetransmissionTimeOut::Default,
-		ssthresh: 0,
-		cwnd: 0,
-		send_pipe: 0,
-		receive_pipe: 0,
+		// RFC 5681: Section 3.1: "The initial value of ssthresh SHOULD be set arbitrarily high (e.g., to the size of the largest possible advertised window)".
+		ssthresh: WindowSize::Maximum.0,
 	};
 	
 	#[inline(always)]
-	pub(crate) fn new(&self, retransmission_time_out: RetransmissionTimeOut, ssthresh: u32, cwnd: u32, send_pipe: u32, receive_pipe: u32) -> RetransmissionTimeOut
+	pub(crate) fn new(&self, retransmission_time_out: RetransmissionTimeOut, ssthresh: u32) -> RetransmissionTimeOut
 	{
 		Self
 		{
 			retransmission_time_out,
 			ssthresh,
-			cwnd,
-			send_pipe,
-			receive_pipe,
 		}
 	}
 	
@@ -49,6 +43,12 @@ impl CachedCongestionData
 	pub(crate) fn retransmission_time_out(&self) -> RetransmissionTimeOut
 	{
 		self.retransmission_time_out.clone()
+	}
+	
+	#[inline(always)]
+	pub(crate) fn ssthresh(&self, sender_maximum_segment_size: u16) -> u32
+	{
+		max((2 * sender_maximum_segment_size) as u32, self.ssthresh)
 	}
 	
 	#[inline(always)]
@@ -67,45 +67,6 @@ impl CachedCongestionData
 		else
 		{
 			self.ssthresh = (self.ssthresh + ssthresh) / 2;
-		}
-	}
-	
-	#[inline(always)]
-	pub(crate) fn update_cwnd(&mut self, cwnd: u32)
-	{
-		if self.cwnd == 0
-		{
-			self.cwnd = cwnd;
-		}
-		else
-		{
-			self.cwnd = (self.cwnd + cwnd) / 2;
-		}
-	}
-	
-	#[inline(always)]
-	pub(crate) fn update_send_pipe(&mut self, send_pipe: u32)
-	{
-		if self.send_pipe == 0
-		{
-			self.send_pipe = send_pipe;
-		}
-		else
-		{
-			self.send_pipe = (self.send_pipe + send_pipe) / 2;
-		}
-	}
-	
-	#[inline(always)]
-	pub(crate) fn update_receive_pipe(&mut self, receive_pipe: u32)
-	{
-		if self.receive_pipe == 0
-		{
-			self.receive_pipe = receive_pipe;
-		}
-		else
-		{
-			self.receive_pipe = (self.receive_pipe + receive_pipe) / 2;
 		}
 	}
 }

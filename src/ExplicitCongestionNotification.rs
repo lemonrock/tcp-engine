@@ -30,3 +30,20 @@ impl Default for ExplicitCongestionNotification
 		ExplicitCongestionNotification::NotCapableTransport
 	}
 }
+
+impl ExplicitCongestionNotification
+{
+	#[inline(always)]
+	pub fn is_ect_set(self) -> bool
+	{
+		use self::ExplicitCongestionNotification::*;
+		
+		self == CapableTransportEctZero || self == CapableTransportEctOne
+	}
+	
+	#[inline(always)]
+	pub fn congestion_encountered(self) -> bool
+	{
+		self == ExplicitCongestionNotification::CongestionEncountered
+	}
+}

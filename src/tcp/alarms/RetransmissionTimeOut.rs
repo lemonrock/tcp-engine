@@ -145,6 +145,11 @@ impl RetransmissionTimeOut
 	#[inline(always)]
 	pub(crate) fn process_measurement_of_round_trip_time(&mut self, measurement_of_round_trip_time: MillisecondDuration)
 	{
+		if unlikely(measurement_of_round_trip_time.is_zero())
+		{
+			return
+		}
+		
 		if self.round_trip_time_needs_measuring
 		{
 			self.first_measurement_of_round_trip_time_made(measurement_of_round_trip_time);
@@ -153,6 +158,7 @@ impl RetransmissionTimeOut
 		{
 			self.subsequent_measurement_of_round_trip_time(measurement_of_round_trip_time);
 		}
+		
 		self.number_of_back_offs = 0;
 	}
 	

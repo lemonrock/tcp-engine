@@ -5,25 +5,25 @@
 #[derive(Default, Debug)]
 pub(crate) struct KeepAliveAlarmBehaviour<TCBA: TransmissionControlBlockAbstractions>
 {
-	last_acknowledgment_occurred_at: Tick,
+	last_acknowledgment_occurred_at: MonotonicMillisecondTimestamp,
 	number_of_keep_alive_probes_sent_once_keep_alive_time_expired: u8,
 }
 
 impl<TCBA: TransmissionControlBlockAbstractions> AlarmBehaviour for KeepAliveAlarmBehaviour<TCBA>
 {
 	#[inline(always)]
-	fn process_alarm<TCBA: TransmissionControlBlockAbstractions>(transmission_control_block: &mut TransmissionControlBlock<TCBA>, interface: &Interface<TCBA>, _now: Tick) -> Option<TickDuration>
+	fn process_alarm(transmission_control_block: &mut TransmissionControlBlock<TCBA>, interface: &Interface<TCBA>, now: Tick) -> Option<TickDuration>
 	{
-		let this: &mut Self = transmission_control_block.keep_alive_alarm.alarm_behaviour;
+		let this: &mut Self = transmission_control_block.keep_alive_alarm.alarm_behaviour_mutable_reference();
 		
 		debug_assert!(transmission_control_block.is_state_synchronized(), "state is not yet Established or later");
 		
 		let ticks_since_last_peer_activity_on_the_connection =
 		{
-			let now = Tick::now();
+			let now = now.to_milliseconds();
 			let last_acknowledgment_occurred_at = this.last_acknowledgment_occurred_at;
 			debug_assert!(now >= last_acknowledgment_occurred_at, "now '{:?}' is before last_acknowledgment_occurred_at '{:?}'", now, last_acknowledgment_occurred_at);
-			last_acknowledgment_occurred_at - now
+			(last_acknowledgment_occurred_at - now).into()
 		};
 		
 		let alarms = interface.alarms();
@@ -33,14 +33,14 @@ impl<TCBA: TransmissionControlBlockAbstractions> AlarmBehaviour for KeepAliveAla
 			let number_of_keep_alive_probes_sent_once_keep_alive_time_expired = this.number_of_keep_alive_probes_sent_once_keep_alive_time_expired;
 			if number_of_keep_alive_probes_sent_once_keep_alive_time_expired == alarms.inclusive_maximum_number_of_keep_alive_probes
 			{
-				transmission_control_block.forcibly_close(interface);
+				transmission_control_block.abort(interface, now.to_milliseconds());
 				return None
 			}
 			else
 			{
-				if unlikely(interface.send_keep_alive_probe_without_packet_to_reuse(transmission_control_block).is_err())
+				if unlikely(interface.send_keep_alive_probe_without_packet_to_reuse(transmission_control_block, now.into()).is_err())
 				{
-					transmission_control_block.forcibly_close(interface);
+					transmission_control_block.abort(interface, now.to_milliseconds());
 					return None
 				}
 				this.number_of_keep_alive_probes_sent_once_keep_alive_time_expired += 1;
@@ -57,7 +57,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> AlarmBehaviour for KeepAliveAla
 	}
 	
 	#[inline(always)]
-	fn alarm_wheel<TCBA: TransmissionControlBlockAbstractions>(alarms: &Alarms<TCBA>) -> &AlarmWheel<Self, TCBA>
+	fn alarm_wheel(alarms: &Alarms<TCBA>) -> &AlarmWheel<Self, TCBA>
 	{
 		alarms.keep_alive_alarm_wheel()
 	}

@@ -21,70 +21,75 @@ impl<TCBA: TransmissionControlBlockAbstractions> AlarmBehaviour for Retransmissi
 	#[inline(always)]
 	fn process_alarm<TCBA: TransmissionControlBlockAbstractions>(transmission_control_block: &mut TransmissionControlBlock<TCBA>, interface: &Interface<TCBA>, _now: Tick) -> Option<TickDuration>
 	{
-		let this: &mut Self = transmission_control_block.retransmission_time_out_alarm.alarm_behaviour;
+		let unacknowledged_segment = transmission_control_block.next_unacknowledged_segment();
 		
-		this.retransmission_time_out.back_off_after_expiry_of_retransmission_alarm();
-		
-		// TODO: Retransmit unack'd packets.
-		
-		let sack_permitted = false;
-		
-		// TODO: Implement F-RTO: https://tools.ietf.org/html/rfc5682#section-2 / section-3
-		// 1) When the retransmission timer expires, retransmit the first unacknowledged segment and set SpuriousRecovery to FALSE.
-		if sack_permitted
+		if unacknowledged_segment.increment_retransmissions()
 		{
-			// Section 3
-		}
-		else
-		{
-			// Section 2
+			transmission_control_block.forcibly_close(interface);
+			return None
 		}
 		
+		{
+			let this: &mut Self = transmission_control_block.retransmission_time_out_alarm.alarm_behaviour_mutable_reference();
+			this.retransmission_time_out.back_off_after_expiry_of_retransmission_alarm();
+		}
+		
+		transmission_control_block.reset_congestion_window_to_loss_window_because_retransmission_timed_out();
+		
+		if unacknowledged_segment.is_first_retransmission()
+		{
+			unacknowledged_segment.clear_explicit_congestion_notifications_when_retransmitting();
+			
+			transmission_control_block.rfc_5681_section_7_paragaph_6_set_ssthresh_to_half_of_flight_size_on_first_retransmission();
+		}
+		
+		
+		// TODO: Retransmit unack'd packet.
 		
 		/*
-		Upon a retransmission timeout, a conventional TCP sender assumes that
-   outstanding segments are lost and starts retransmitting the
-   unacknowledged segments.  When the retransmission timeout is detected
-   to be spurious, the TCP sender should not continue retransmitting
-   based on the timeout.  For example, if the sender was in congestion
-
-
-
-Sarolahti, et al.           Standards Track                    [Page 11]
-
-
-RFC 5682                         F-RTO                    September 2009
-
-
-   avoidance phase transmitting new, previously unsent segments, it
-   should continue transmitting previously unsent segments in congestion
-   avoidance.
-
-   There are currently two alternatives specified for a spurious timeout
-   response algorithm, the Eifel Response Algorithm [LG05], and an
-   algorithm for adapting the retransmission timeout after a spurious
-   RTO [BBA06].  If no specific response algorithm is implemented, the
-   TCP SHOULD respond to spurious timeout conservatively, applying the
-   TCP congestion control specification [APB09].  Different response
-   algorithms for spurious retransmission timeouts have been analyzed in
-   some research papers [GL03, Sar03] and IETF documents [SL03].
 		
+		RFC 6298
 		
+5.  Managing the RTO Timer
+
+   An implementation MUST manage the retransmission timer(s) in such a
+   way that a segment is never retransmitted too early, i.e., less than
+   one RTO after the previous transmission of that segment.
+
+   The following is the RECOMMENDED algorithm for managing the
+   retransmission timer:
+
+   (5.1) Every time a packet containing data is sent (including a
+         retransmission), if the timer is not running, start it running
+         so that it will expire after RTO seconds (for the current value
+         of RTO).
+
+   (5.2) When all outstanding data has been acknowledged, turn off the
+         retransmission timer.
+
+   (5.3) When an ACK is received that acknowledges new data, restart the
+         retransmission timer so that it will expire after RTO seconds
+         (for the current value of RTO).
+
+   When the retransmission timer expires, do the following:
+
+   (5.4) Retransmit the earliest segment that has not been acknowledged
+         by the TCP receiver.
+
+   (5.5) The host MUST set RTO <- RTO * 2 ("back off the timer").  The
+         maximum value discussed in (2.5) above may be used to provide
+         an upper bound to this doubling operation.
+
+   (5.6) Start the retransmission timer, such that it expires after RTO
+         seconds (for the value of RTO after the doubling operation
+         outlined in 5.5).
 		*/
-		
-		enum SpuriousRecoveryState
-		{
-			SPUR_TO,
-			
-			FALSE,
-		}
-		
 		
 		Some(this.retransmission_time_out.time_out())
 	}
 	
 	#[inline(always)]
-	fn alarm_wheel<TCBA: TransmissionControlBlockAbstractions>(alarms: &Alarms<TCBA>) -> &AlarmWheel<Self, TCBA>
+	fn alarm_wheel(alarms: &Alarms<TCBA>) -> &AlarmWheel<Self, TCBA>
 	{
 		alarms.retransmission_time_out_alarm_wheel()
 	}

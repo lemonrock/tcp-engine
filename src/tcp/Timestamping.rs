@@ -50,7 +50,7 @@ impl Timestamping
 	}
 	
 	#[inline(always)]
-	pub(crate) fn initial_timestamps_option(&self, now: MonotonicMillisecondTimestamp, their_timestamp_value: NetworkEndianU32) -> TimestampsOption
+	pub(crate) fn synflood_synchronize_acknowledgment_timestamps_option(now: MonotonicMillisecondTimestamp, their_timestamp_value: NetworkEndianU32) -> TimestampsOption
 	{
 		let TSval = Self::our_initial_timestamp(now);
 		
@@ -60,11 +60,11 @@ impl Timestamping
 	}
 	
 	#[inline(always)]
-	pub(crate) fn subsequent_timestamps_option(&self, now: MonotonicMillisecondTimestamp) -> TimestampsOption
+	pub(crate) fn normal_timestamps_option(&self, now: MonotonicMillisecondTimestamp) -> TimestampsOption
 	{
 		let TSval = self.our_subsequent_timestamp(now);
 		
-		// RFC 7323, Section 4.3 (3): " When a TSopt is sent, its TSecr field is set to the current TS.Recent value".
+		// RFC 7323, Section 4.3 (3):  When a TSopt is sent, its TSecr field is set to the current TS.Recent value".
 		let TSecr = self.TS_Recent;
 		
 		TimestampsOption::from_TSval_and_TSecr(TSval, TSecr)

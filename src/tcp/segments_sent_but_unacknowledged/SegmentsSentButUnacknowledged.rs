@@ -3,13 +3,13 @@
 
 
 #[derive(Debug)]
-pub(crate) struct UnacknowledgedSegments<TCBA: TransmissionControlBlockAbstractions>
+pub(crate) struct SegmentsSentButUnacknowledged<TCBA: TransmissionControlBlockAbstractions>
 {
 	combined_payload_size: usize,
-	queue: BTreeMap<WrappingSequenceNumber, UnacknowledgedSegment<TCBA>>,
+	queue: BTreeMap<WrappingSequenceNumber, SegmentSentButUnacknowledged<TCBA>>,
 }
 
-impl<TCBA: TransmissionControlBlockAbstractions> Default for UnacknowledgedSegments<TCBA>
+impl<TCBA: TransmissionControlBlockAbstractions> Default for SegmentsSentButUnacknowledged<TCBA>
 {
 	#[inline(always)]
 	fn default() -> Self
@@ -26,7 +26,7 @@ const MaximumQueueDepth: usize = 16;
 
 const MaximumCombinedPayloadSize: usize = 16 * 1_024;
 
-impl<TCBA: TransmissionControlBlockAbstractions> UnacknowledgedSegments<TCBA>
+impl<TCBA: TransmissionControlBlockAbstractions> SegmentsSentButUnacknowledged<TCBA>
 {
 	#[inline(always)]
 	pub(crate) fn is_empty(&self) -> bool
@@ -35,44 +35,15 @@ impl<TCBA: TransmissionControlBlockAbstractions> UnacknowledgedSegments<TCBA>
 	}
 	
 	#[inline(always)]
-	pub(crate) fn remove(&mut self, sequence_number: WrappingSequenceNumber)
+	pub(crate) fn is_not_empty(&self) -> bool
 	{
-		if let Some(segment) = self.queue.remove(&sequence_number)
-		{
-			self.combined_payload_size -= segment.segment_length();
-			drop(segment);
-		}
+		!self.is_empty()
 	}
 	
 	#[inline(always)]
-	pub(crate) fn remove_from_first_up_to(&mut self, up_to_sequence_number: WrappingSequenceNumber) -> usize
+	pub(crate) fn remove(&mut self, sequence_number: WrappingSequenceNumber)
 	{
-		let mut to_remove = ArrayVec::<[WrappingSequenceNumber; MaximumQueueDepth]>::new();
-		
-		{
-			let mut head = self.first();
-			while head.is_some()
-			{
-				let segment = head.unwrap();
-				let end_sequence_number = segment.end_sequence_number();
-				
-				if end_sequence_number > up_to_sequence_number
-				{
-					break
-				}
-				
-				to_remove.push(segment.sequence_number());
-				
-				head = self.next_fast(end_sequence_number)
-			}
-		}
-		
-		let removed = to_remove.len();
-		for sequence_number in to_remove
-		{
-			self.remove(sequence_number)
-		}
-		removed
+		self.queue.remove(&sequence_number);
 	}
 	
 	#[inline(always)]
@@ -113,6 +84,12 @@ impl<TCBA: TransmissionControlBlockAbstractions> UnacknowledgedSegments<TCBA>
 	}
 	
 	#[inline(always)]
+	pub(crate) fn next_unacknowledged_segment(&mut self) -> &mut SegmentSentButUnacknowledged<TCBA>
+	{
+		self.queue.values_mut().next().expect("When this method is used from the Retransmission time out alarm, it is assumed there are unacknowledged segments")
+	}
+	
+	#[inline(always)]
 	pub(crate) fn first(&self) -> Option<&S>
 	{
 		self.queue.values().next()
@@ -138,18 +115,13 @@ impl<TCBA: TransmissionControlBlockAbstractions> UnacknowledgedSegments<TCBA>
 	}
 	
 	#[inline(always)]
-	pub(crate) fn next_fast(&self, current_end_sequence_number: WrappingSequenceNumber) -> Option<&S>
+	fn next_fast(&self, current_end_sequence_number: WrappingSequenceNumber) -> Option<&S>
 	{
 		self.get(current_end_sequence_number)
 	}
 	
-	/// Will not enqueue packets:-
-	///
-	/// * whose payload length is zero; in this case an error is returned;
-	/// * when the queue depth or queue buffer size is full;
-	/// * if the segment is already enqueued according to sequence number (but not payload length or timestamp).
 	#[inline(always)]
-	pub(crate) fn enqueue(&mut self, segment: S) -> Result<(), &'static str>
+	pub(crate) fn append(&mut self, segment: S) -> Result<(), &'static str>
 	{
 		let segment_length = segment.segment_length();
 		
@@ -163,12 +135,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> UnacknowledgedSegments<TCBA>
 			return Err("maximum queue depth reached")
 		}
 		
-		if self.combined_payload_size + segment_length > MaximumCombinedPayloadSize
-		{
-			return Err("maximum queue bytes reached")
-		}
 		
-		self.combined_payload_size += segment_length;
 		if self.queue.insert(segment.SEQ(), segment).is_none()
 		{
 			Ok(())
@@ -176,6 +143,21 @@ impl<TCBA: TransmissionControlBlockAbstractions> UnacknowledgedSegments<TCBA>
 		else
 		{
 			Err("would have replaced an existing entry")
+		}
+		
+		#[derive(Debug)]
+		pub(crate) struct SegmentSentButUnacknowledged<TCBA: TransmissionControlBlockAbstractions>
+		{
+			packet: TCBA::Packet,
+			
+			tcp_segment: NonNull<TcpSegment<TCBA>>,
+			
+			/// RFC 793, Glossary, Page 83: "The amount of sequence number space occupied by a segment, including any controls which occupy sequence space".
+			segment_length: usize,
+			
+			timestamp: MonotonicMillisecondTimestamp,
+			
+			retransmissions: u8,
 		}
 	}
 }

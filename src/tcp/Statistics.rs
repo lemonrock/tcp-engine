@@ -2,15 +2,10 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
-use super::*;
-
-
-include!("Alarm.rs");
-include!("AlarmBehaviour.rs");
-include!("AlarmList.rs");
-include!("AlarmWheel.rs");
-include!("DereferenceUnchecked.rs");
-include!("KeepAliveAlarmBehaviour.rs");
-include!("UserTimeOutAlarmBehaviour.rs");
-include!("RetransmissionTimeOut.rs");
-include!("RetransmissionTimeOutAlarmBehaviour.rs");
+#[derive(Default, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
+struct Statistics
+{
+	pub(crate) ecn_ce: Cell<u64>,
+	pub(crate) ecn_ect0: Cell<u64>,
+	pub(crate) ecn_ect1: Cell<u64>,
+}

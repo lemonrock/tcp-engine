@@ -64,7 +64,6 @@ impl InternetProtocolAddress for NetworkEndianU128
 			1480 - Self::MaximumTransmissionUnitToTcpMaximumSegmentSizeReduction,
 			1500 - Self::MaximumTransmissionUnitToTcpMaximumSegmentSizeReduction,
 			9000 - Self::MaximumTransmissionUnitToTcpMaximumSegmentSizeReduction,
-			// TODO: Maximum ethernet MTU
 		]
 	}
 	

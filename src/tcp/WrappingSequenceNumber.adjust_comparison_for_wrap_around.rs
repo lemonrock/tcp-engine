@@ -2,15 +2,35 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
-use super::*;
-
-
-include!("Alarm.rs");
-include!("AlarmBehaviour.rs");
-include!("AlarmList.rs");
-include!("AlarmWheel.rs");
-include!("DereferenceUnchecked.rs");
-include!("KeepAliveAlarmBehaviour.rs");
-include!("UserTimeOutAlarmBehaviour.rs");
-include!("RetransmissionTimeOut.rs");
-include!("RetransmissionTimeOutAlarmBehaviour.rs");
+macro_rules! adjust_comparison_for_wrap_around
+{
+	($us: ident, $them: ident, $less: block, $greater: block, $equal: block) =>
+	{
+		if $us > $them
+		{
+			if Self::difference_exceeds_wrap_around($us, $them)
+			{
+				$less
+			}
+			else
+			{
+				$greater
+			}
+		}
+		else if $us < $them
+		{
+			if Self::difference_exceeds_wrap_around($them, $us)
+			{
+				$greater
+			}
+			else
+			{
+				$less
+			}
+		}
+		else
+		{
+			$equal
+		}
+	}
+}

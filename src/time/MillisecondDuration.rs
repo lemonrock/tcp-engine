@@ -51,6 +51,15 @@ impl Into<u64> for MillisecondDuration
 	}
 }
 
+impl Into<TickDuration> for MillisecondDuration
+{
+	#[inline(always)]
+	fn into(self) -> u64
+	{
+		TickDuration::milliseconds_to_ticks_rounded_down(self.0)
+	}
+}
+
 impl Sub for MillisecondDuration
 {
 	type Output = Self;

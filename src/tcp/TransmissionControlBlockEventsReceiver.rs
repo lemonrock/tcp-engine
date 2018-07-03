@@ -8,7 +8,7 @@ pub trait TransmissionControlBlockEventsReceiver
 	/// A client has established a connection.
 	fn client_connection_established(&self);
 	
-	/// The TimeWait state has begun and the transmission control block is 'lingering'.
+	/// The TimeWait state has begun and the transmission control block is 'user_time_outing'.
 	///
 	/// This call will be followed by either `finish()` at some point or `finish_forcibly_closed()`.
 	fn begin_time_wait(&self);

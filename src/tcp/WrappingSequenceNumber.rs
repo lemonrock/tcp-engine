@@ -6,39 +6,6 @@
 #[derive(Default, Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct WrappingSequenceNumber(u32);
 
-macro_rules! adjust_comparison_for_wrap_around
-{
-	($us: ident, $them: ident, $less: block, $greater: block, $equal: block) =>
-	{
-		if $us > $them
-		{
-			if Self::difference_exceeds_wrap_around($us, $them)
-			{
-				$less
-			}
-			else
-			{
-				$greater
-			}
-		}
-		else if $us < $them
-		{
-			if Self::difference_exceeds_wrap_around($them, $us)
-			{
-				$greater
-			}
-			else
-			{
-				$less
-			}
-		}
-		else
-		{
-			$equal
-		}
-	}
-}
-
 impl PartialOrd for WrappingSequenceNumber
 {
 	#[inline(always)]
@@ -138,6 +105,17 @@ impl AddAssign<WindowSize> for WrappingSequenceNumber
 	}
 }
 
+impl Sub for WrappingSequenceNumber
+{
+	type Output = u32;
+	
+	#[inline(always)]
+	fn sub(self, other: Self) -> Self::Output
+	{
+		self.0.wrapping_sub(other.0)
+	}
+}
+
 impl Sub<u32> for WrappingSequenceNumber
 {
 	type Output = Self;
@@ -186,6 +164,12 @@ impl WrappingSequenceNumber
 	pub(crate) const fn new(value: u32) -> Self
 	{
 		WrappingSequenceNumber(value)
+	}
+	
+	#[inline(always)]
+	pub(crate) fn is_not_zero(self) -> bool
+	{
+		self.0 != Self::Zero.0
 	}
 	
 	#[inline(always)]
@@ -238,6 +222,19 @@ impl WrappingSequenceNumber
 	pub(crate) fn decrement_u32(self, decrement: u32) -> Self
 	{
 		WrappingSequenceNumber(self.0.wrapping_sub(decrement))
+	}
+	
+	#[inline(always)]
+	pub(crate) fn sequence_numbers_differ_by_too_much(self, other: Self) -> bool
+	{
+		if self.0 >= other.0
+		{
+			Self::difference_exceeds_wrap_around(self.0, other.0)
+		}
+		else
+		{
+			Self::difference_exceeds_wrap_around(other.0, self.0)
+		}
 	}
 	
 	#[inline(always)]

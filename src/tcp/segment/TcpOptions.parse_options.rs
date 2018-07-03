@@ -168,9 +168,9 @@ macro_rules! parse_options
 							drop!($packet, "TCP option maximum segment size was duplicated")
 						}
 						
-						if unlikely(!$all_flags.contains(Flags::Synchronize))
+						if unlikely($all_flags.does_not_contain(Flags::Synchronize))
 						{
-							drop!($packet, "TCP option maximum segment size was specified on a segment without a Synchronize flag")
+							drop!($packet, "TCP option maximum segment size was specified on a segment other than Synchronize or SynchronizeAcknowledgment")
 						}
 						
 						let pointer_to_data = parse_option_known_length!($packet, pointer_to_option_kind, end_pointer, KnownLength);
@@ -197,6 +197,10 @@ macro_rules! parse_options
 						{
 							drop!($packet, "TCP option window scale was duplicated")
 						}
+						
+						// RFC 7323 2.2: "A Window Scale option in a segment without a SYN bit MUST be ignored".
+						//
+						// We still parse to validate the option and check for duplication, but we ignore it in any downstream code.
 						
 						let pointer_to_data = parse_option_known_length!($packet, pointer_to_option_kind, end_pointer, KnownLength);
 						tcp_options.window_scale =
@@ -225,9 +229,9 @@ macro_rules! parse_options
 							drop!($packet, "TCP option selective acknowledgment permitted was duplicated")
 						}
 						
-						if unlikely(!$all_flags.contains(Flags::Synchronize))
+						if unlikely($all_flags.does_not_contain(Flags::Synchronize))
 						{
-							drop!($packet, "TCP option selective acknowledgment permitted was specified on a segment other than Synchronize")
+							drop!($packet, "TCP option selective acknowledgment permitted was specified on a segment other than Synchronize or SynchronizeAcknowledgment")
 						}
 						
 						parse_option_known_length!($packet, pointer_to_option_kind, end_pointer, KnownLength);
@@ -246,9 +250,9 @@ macro_rules! parse_options
 							drop!($packet, "TCP option selective acknowledgment was duplicated")
 						}
 						
-						if unlikely(!$all_flags.contains(Flags::Acknowledgment))
+						if unlikely($all_flags.does_not_contain(Flags::Acknowledgment) || $all_flags == Flags::SynchronizeAcknowledgment)
 						{
-							drop!($packet, "TCP option selective acknowledgment permitted was specified on a segment other than Acknowledgment")
+							drop!($packet, "TCP option selective acknowledgment was specified on a segment other than Acknowledgment or was present on a SynchronizeAcknowledgment")
 						}
 
 						let length = parse_option_variable_length_including_option_kind_and_length_fields!($packet, pointer_to_option_kind, end_pointer) as usize;
@@ -330,6 +334,8 @@ macro_rules! parse_options
 						{
 							drop!($packet, "TCP option timestamps was duplicated")
 						}
+						
+						// RFC 7323: "If a TSopt is received on a connection where TSopt was not negotiated in the initial three-way handshake, the TSopt MUST be ignored and the packet processed normally".
 						
 						let pointer_to_data = parse_option_known_length!($packet, pointer_to_option_kind, end_pointer, KnownLength);
 						tcp_options.timestamps = if $all_flags.contains(Flags::Acknowledgment)

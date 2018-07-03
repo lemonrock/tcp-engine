@@ -46,4 +46,9 @@ The license for this project is AGPL3.
 * A recent connections cache is used to record congestion-control data to make new connections more efficient.
 
 
+## Limitations
+
+* The use of syncookies means that very large Ethernet Jumbo frames (those over 9000 bytes) are not effectively used for IPV6 TCP packets.
+* Likewise, the use of Ethernet frames over 1500 bytes are not effectively used for IPv4.
+
 [tcp-engine]: https://github.com/lemonrock/tcp-engine "tcp-engine GitHub page"

@@ -3,7 +3,7 @@
 
 
 #[derive(Debug)]
-pub(crate) struct UnacknowledgedSegment<TCBA: TransmissionControlBlockAbstractions>
+pub(crate) struct SegmentSentButUnacknowledged<TCBA: TransmissionControlBlockAbstractions>
 {
 	packet: TCBA::Packet,
 	
@@ -13,9 +13,11 @@ pub(crate) struct UnacknowledgedSegment<TCBA: TransmissionControlBlockAbstractio
 	segment_length: usize,
 	
 	timestamp: MonotonicMillisecondTimestamp,
+
+	retransmissions: u8,
 }
 
-impl<TCBA: TransmissionControlBlockAbstractions> Drop for UnacknowledgedSegment<TCBA>
+impl<TCBA: TransmissionControlBlockAbstractions> Drop for SegmentSentButUnacknowledged<TCBA>
 {
 	#[inline(always)]
 	fn drop(&mut self)
@@ -24,7 +26,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Drop for UnacknowledgedSegment<
 	}
 }
 
-impl<TCBA: TransmissionControlBlockAbstractions> UnacknowledgedSegment<TCBA>
+impl<TCBA: TransmissionControlBlockAbstractions> SegmentSentButUnacknowledged<TCBA>
 {
 	#[inline(always)]
 	fn new(packet: TCBA::Packet, tcp_segment: NonNull<TcpSegment<TCBA>>, segment_length: usize, now: MonotonicMillisecondTimestamp) -> Self
@@ -35,6 +37,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> UnacknowledgedSegment<TCBA>
 			tcp_segment,
 			segment_length,
 			timestamp: now,
+			retransmissions: 0,
 		}
 	}
 	
@@ -60,5 +63,30 @@ impl<TCBA: TransmissionControlBlockAbstractions> UnacknowledgedSegment<TCBA>
 	fn timestamp(&self) -> MonotonicMillisecondTimestamp
 	{
 		self.timestamp
+	}
+	
+	#[inline(always)]
+	fn increment_retransmissions_and_fail_if_maximum_reached(&mut self) -> bool
+	{
+		const MaximumRetransmissions: u8 = 8;
+		
+		self.retransmissions += 1;
+		self.retransmissions == MaximumRetransmissions
+	}
+	
+	#[inline(always)]
+	fn clear_explicit_congestion_notifications_when_retransmitting(&mut self)
+	{
+		let tcp_segment = unsafe { self.tcp_segment.as_mut() };
+		tcp_segment.clear_congestion_window_reduced_flag();
+		
+		// RFC 3168 Section 6.1.5 Paragraph 1: "... TCP implementations MUST NOT set either ECT codepoint (ECT(0) or ECT(1)) in the IP header for retransmitted data packets".
+		self.packet.set_explicit_congestion_notification_state_off();
+	}
+	
+	#[inline(always)]
+	fn is_second_or_more_successive_time_out(&self) -> bool
+	{
+		self.retransmissions > 1
 	}
 }

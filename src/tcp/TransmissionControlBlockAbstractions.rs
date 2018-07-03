@@ -20,6 +20,8 @@ pub trait TransmissionControlBlockAbstractions: Sized
 	///
 	/// If it can't create a packet, returns an error.
 	///
+	/// A newly created packet should have its ECN bits set to zero (0).
+	///
 	/// RFC 7323, Section 5.7 requires that Internet Protocol version 4 packets have the Do Not Fragment (DF) bit set in their header to provide maximum protection for the PAWS algorithm.
 	#[inline(always)]
 	fn create_packet(&self, source_internet_protocol_address: &Address, destination_internet_protocol_address: &Address, layer_4_protocol: u8) -> Result<(Self::Packet, NonNull<u8>), ()>;
@@ -29,6 +31,8 @@ pub trait TransmissionControlBlockAbstractions: Sized
 	/// Internally, the packet creator must flip the source and destination internet protocol addresses (and probably also the ethernet addresses).
 	///
 	/// Reuses a reference to an existing packet; this is because allocation (eg by malloc) of a new packet can be relatively expensive, and also, under heavy load, memory might not be easy to come by.
+	///
+	/// A resued packet should have its ECN bits set to zero (0).
 	///
 	/// Returns a pointer to the layer 4 payload.
 	#[inline(always)]

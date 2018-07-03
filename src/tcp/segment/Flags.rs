@@ -10,7 +10,7 @@ bitflags!
 		///
 		/// This is set by the sending host to indicate that it received a TCP segment with the ECN-Echo (`ECE`) flag set.
 		///
-		/// See RFC 3168 as subsustanially modified by RFC 8311.
+		/// See RFC 3168 as modified by RFC 8311.
 		const CongestionWindowReduced = 0b1000_0000;
 		
 		/// Explicit Congestion (ECN) Echo, 'ECE', also known as ECN-Echo.
@@ -18,7 +18,7 @@ bitflags!
 		/// * If the `SYN` flag is set, then the remote peer is Explicit Congestion (ECN) capable.
 		/// * If the `SYN` flag is not set set, then the Internet Protocol (IP) version 4 or version 6 header before the TCP frame should have the Explicit Congestion (ECN) bits set to 0b11.
 		///
-		/// See RFC 3168 as subsustanially modified by RFC 8311.
+		/// See RFC 3168 as modified by RFC 8311.
 		const ExplicitCongestionEcho = 0b0100_0000;
 		
 		/// Urgent pointer (URG) field is valid.
@@ -85,6 +85,11 @@ bitflags!
 		
 		/// Synchronize and Acknowledgment (SYNACK) explict congestion notification support signalled.
 		const SynchronizeAcknowledgmentExplicitCongestionEcho = Self::Synchronize.bits | Self::ExplicitCongestionEcho.bits;
+		
+		/// Synchronize and Finish (SYNFIN)
+		///
+		/// A now invalid combination originally specified in RFC 1644 (T/TCP).
+		const SynchronizeFinish = Self::Synchronize.bits | Self::Finish.bits;
 	}
 }
 

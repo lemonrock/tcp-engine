@@ -20,6 +20,15 @@ impl Default for MaximumSegmentSizeOption
 	}
 }
 
+impl From<u16> for MaximumSegmentSizeOption
+{
+	#[inline(always)]
+	fn from(value: u16) -> Self
+	{
+		MaximumSegmentSizeOption(NativeEndianU16::from_native_endian(value))
+	}
+}
+
 impl MaximumSegmentSizeOption
 {
 	pub(crate) const Kind: u8 = 2;
@@ -83,10 +92,5 @@ impl MaximumSegmentSizeOption
 	pub(crate) fn maximum_segment_size_to_send_to_remote_u16<TCBA: TransmissionControlBlockAbstractions>(their_maximum_segment_size: u16, interface: &Interface<TCBA>, remote_internet_protocol_address: &TCBA::Address)
 	{
 		min(their_maximum_segment_size, interface.our_current_maximum_segment_size_without_fragmentation(remote_internet_protocol_address))
-	}
-	
-	#[inline(always)]
-	fn theirs_or_default(their_maximum_segment_size: Option<Self>) -> u16
-	{
 	}
 }

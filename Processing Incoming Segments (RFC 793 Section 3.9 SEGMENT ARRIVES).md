@@ -125,7 +125,7 @@ Ignored as per RFC 2873.
 This step should be reached only if the `ACK` is acceptable^[was 'ok'], or there is no `ACK`, and it the segment did not contain a `RST`.
 
 
-### If the `SYN` bit is on 
+### If the `SYN` bit is on
 
 Security requirements ignored as per RFC 2873.
 
@@ -238,7 +238,7 @@ If in `SYN-RECEIVED` state, and received a `SYN-ACK` packet with no data as:
 * `SEG.SEQ = IRS`
 * `SEG.ACK = ISS + 1`
 
-However in `SYN-RECEIVED` state, `RCV.NXT = IRS + 1`, which means the `SYN-ACK` packet will fail on the second test above. The `SYN-ACK` packet will be dropped and an `ACK` packet is sent in reply. As a result, we lost the `SYN` part, but it is fine because we've already received `SYN` packet once. However, we also lost the `ACK` part which is supposed to be the `ACK` of our `SYN`. Thus we will never reach the `ESTABLISHED` state. 
+However in `SYN-RECEIVED` state, `RCV.NXT = IRS + 1`, which means the `SYN-ACK` packet will fail on the second test above. The `SYN-ACK` packet will be dropped and an `ACK` packet is sent in reply. As a result, we lost the `SYN` part, but it is fine because we've already received `SYN` packet once. However, we also lost the `ACK` part which is supposed to be the `ACK` of our `SYN`. Thus we will never reach the `ESTABLISHED` state.
 
 
 #### RFC 1122 Section 4.2.2.20 Additional Changes
@@ -270,7 +270,7 @@ This logic has been updated from RFC 5961 Section 3.
 
 In the `SYN-SENT` state (a `RST` received in response to an initial `SYN`), the `RST` is acceptable if the `ACK` field acknowledges the `SYN`. In all other cases the receiver MUST silently discard the segment.
 
-  
+
 #### All other states
 
 In all states except `SYN-SENT`, all reset (`RST`) segments are validated by checking their `SEQ`-fields \[sequence numbers\].  A reset is valid if its sequence number exactly matches the next expected sequence number.  If the `RST` arrives and its sequence number field does NOT match the next expected sequence number but is within the window, then the receiver should generate an `ACK`.  In all other cases, where the `SEQ`-field does not match and is outside the window, the receiver MUST silently discard the segment.
@@ -345,11 +345,13 @@ When the connection enters `ESTABLISHED` state^[RFC 1122 Section 4.2.2.220 (f)],
 
 #### `ESTABLISHED`
 
-The `ACK` value is considered acceptable only if it is in the range of `((SND.UNA - MAX.SND.WND) <= SEG.ACK <= SND.NXT)`. All incoming segments whose `ACK` value doesn't satisfy the above condition MUST be discarded and an `ACK`` sent back.^[RFC 5961 Section 5.]
+The `ACK` value is considered acceptable only if it is in the range of `((SND.UNA - MAX.SND.WND) <= SEG.ACK <= SND.NXT)`. All incoming segments whose `ACK` value doesn't satisfy the above condition MUST be discarded and an `ACK` sent back.^[RFC 5961 Section 5.2 Paragraph 1]
 
 * If `SND.UNA < SEG.ACK <= SND.NXT` (the segment acknowledgment is acceptable) then, set `SND.UNA <- SEG.ACK`. Also compute a new estimate of round-trip time. If `Snd.TS.OK` bit is on, use `Snd.TSclock - SEG.TSecr`; otherwise, use the elapsed time since the first segment in the retransmission queue was sent. Any segments on the retransmission queue which are thereby entirely acknowledged are removed. Users should receive positive acknowledgments for buffers which have been SENT and fully acknowledged (i.e., SEND buffer should be returned with "ok" response).
-* If the `ACK` is a duplicate (`SEG.ACK <= SND.UNA`^[RFC1122 Section 4.2.2.20 (g) (the `=` was omitted)]), it can be ignored^[But see Errata 4785]. 
-* If the `ACK` acks something not yet sent (`SEG.ACK > SND.NXT`) then send an `ACK`, drop the segment, and return.
+* If the `ACK` is a duplicate (`SEG.ACK <= SND.UNA`^[RFC1122 Section 4.2.2.20 (g) (the `=` was omitted)]), it can be ignored^[But see Errata 4785].
+* If the `ACK` acks something not yet sent (`SEG.ACK > SND.NXT`) then:-
+  * Apply RFC 5961 Section 5.2 Paragraph 1: This test has already been applied in the first paragraph, so this should not be possible.
+  * Formerly, apply RFC 793: Send an `ACK`, drop the segment, and return.
 
 If (`SND.UNA <= SEG.ACK <= SND.NXT`)^[RFC1122 Section 4.2.2.20 (g)], the send window should be updated. If (`SND.WL1 < SEG.SEQ` or (`SND.WL1 = SEG.SEQ and SND.WL2 <= SEG.ACK`)), set `SND.WND <- SEG.WND`, set `SND.WL1 <- SEG.SEQ`, and set `SND.WL2 <- SEG.ACK`.
 
@@ -364,7 +366,7 @@ If the `ACK` is a duplicate (`SEG.ACK <= SND.UNA`), it can be ignored except whe
 * the receiver shrinks `RCV.BUF` such that all of these segments would drop;
 * the reciever sends an `ACK` with a `WND` of zero (a window update `ACK`)
 
-If the window is zero then the senderr starts a persist timer for sending zero-window probes ^[RFC 1122 Section 4.2.2.17, page 92].
+If the window is zero then the sender starts a persist timer for sending zero-window probes ^[RFC 1122 Section 4.2.2.17, page 92].
 
 See also the definition of "DUPLICATE ACKNOWLEDGMENT" in RFC 5681 Section 2 Page 4.
 

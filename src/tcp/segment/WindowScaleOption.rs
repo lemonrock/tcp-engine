@@ -49,6 +49,8 @@ impl WindowScaleOption
 	
 	pub(crate) const BufferSizeOf256Kb: Self = WindowScaleOption(2);
 	
+	pub(crate) const Maximum: Self = WindowScaleOption(14);
+	
 	pub(crate) const KnownLength: usize = 3;
 	
 	pub(crate) const EquivalentToNoWindowScale: Self = Self::Zero;

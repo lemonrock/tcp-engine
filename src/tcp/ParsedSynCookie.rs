@@ -19,4 +19,6 @@ pub(crate) struct ParsedSynCookie
 	their_window_scale: Option<u8>,
 	
 	their_selective_acknowledgment_permitted: bool,
+
+	explicit_congestion_notification_supported: bool,
 }

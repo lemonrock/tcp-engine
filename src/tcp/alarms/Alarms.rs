@@ -50,12 +50,10 @@ struct Alarms<TCBA: TransmissionControlBlockAbstractions>
 	/// Defaults to five (5).
 	pub(crate) inclusive_maximum_number_of_keep_alive_probes: u8,
 	
-	linger_alarm_wheel: AlarmWheel<LingerAlarmBehaviour, TCBA>,
+	user_time_out_alarm_wheel: AlarmWheel<UserTimeOutAlarmBehaviour, TCBA>,
 	
-	/// The convention in POSIX systems is for a linger timer out of zero (0) to force a Reset rather than an normal Close and TimeWait.
-	///
 	/// Defaults to three (3) seconds.
-	pub(crate) linger_time: TickDuration,
+	pub(crate) XXX_user_time_out: TickDuration,
 }
 
 impl<TCBA: TransmissionControlBlockAbstractions> Alarms<TCBA>
@@ -81,8 +79,8 @@ impl<TCBA: TransmissionControlBlockAbstractions> Alarms<TCBA>
 			keep_alive_interval,
 			inclusive_maximum_number_of_keep_alive_probes,
 			
-			linger_alarm_wheel: AlarmWheel::new(now),
-			linger_time: TickDuration::milliseconds_to_ticks_rounded_up(MillisecondDuration::ThreeSeconds),
+			user_time_out_alarm_wheel: AlarmWheel::new(now),
+			XXX_user_time_out: TickDuration::milliseconds_to_ticks_rounded_up(MillisecondDuration::ThreeSeconds),
 		}
 	}
 	
@@ -93,7 +91,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Alarms<TCBA>
 		let now = Tick::now();
 		self.retransmission_time_out_alarm_wheel.progress(now, interface);
 		self.keep_alive_alarm_wheel.progress(now, interface);
-		self.linger_alarm_wheel.progress(now, interface);
+		self.user_time_out_alarm_wheel.progress(now, interface);
 		now
 	}
 	
@@ -110,8 +108,8 @@ impl<TCBA: TransmissionControlBlockAbstractions> Alarms<TCBA>
 	}
 	
 	#[inline(always)]
-	pub(crate) fn linger_alarm_wheel(&self) -> &AlarmWheel<RetransmissionTimeOutAlarmBehaviour, TCBA>
+	pub(crate) fn user_time_out_alarm_wheel(&self) -> &AlarmWheel<RetransmissionTimeOutAlarmBehaviour, TCBA>
 	{
-		&self.linger_alarm_wheel
+		&self.user_time_out_alarm_wheel
 	}
 }

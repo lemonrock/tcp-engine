@@ -14,8 +14,8 @@ macro_rules! processing_incoming_segments_4_2_check_the_rst_bit
 			// If the RST arrives and its sequence number field does NOT match the next expected sequence number but is within the window, then the receiver should generate a [Challenge] ACK.
 			// In all other cases, where the SEQ-field does not match and is outside the window, the receiver MUST silently discard the segment."
 		
-			let RCV = &transmission_control_block.RCV;
-			let SEG = self;
+			let RCV = &$transmission_control_block.RCV;
+			let SEG = $self;
 			
 			let segment_sequence_number_exactly_matches_next_expected_sequence_number = SEG.SEQ == RCV.NXT;
 			
@@ -31,7 +31,7 @@ macro_rules! processing_incoming_segments_4_2_check_the_rst_bit
 				
 				if reset_is_within_window
 				{
-					self.interface.send_challenge_acknowledgment(self.reuse_packet(), transmission_control_block);
+					$self.interface.send_challenge_acknowledgment(self.reuse_packet(), transmission_control_block, $self.now);
 					return
 				}
 				else

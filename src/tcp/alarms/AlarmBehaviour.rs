@@ -5,10 +5,10 @@
 pub(crate) trait AlarmBehaviour: Default + Debug
 {
 	#[inline(always)]
-	fn process_alarm<TCBA: TransmissionControlBlockAbstractions>(transmission_control_block: &mut TransmissionControlBlock<TCBA>, interface: &Interface<TCBA>, now: Tick) -> Option<TickDuration>;
+	fn process_alarm(transmission_control_block: &mut TransmissionControlBlock<TCBA>, interface: &Interface<TCBA>, now: Tick) -> Option<TickDuration>;
 	
 	#[inline(always)]
-	fn alarm_wheel<TCBA: TransmissionControlBlockAbstractions>(alarms: &Alarms<TCBA>) -> &AlarmWheel<Self, TCBA>;
+	fn alarm_wheel(alarms: &Alarms<TCBA>) -> &AlarmWheel<Self, TCBA>;
 	
 	#[inline(always)]
 	fn offset_of_parent_alarm_from_transmission_control_block() -> usize;

@@ -45,4 +45,12 @@ pub trait ContiguousPacket: Copy
 	/// Obtains the explicit congestion notification of this packet.
 	#[inline(always)]
 	fn explicit_congestion_notification<Address: InternetProtocolAddress>(self) -> ExplicitCongestionNotification;
+	
+	/// Sets the explicit congestion notification (ECN) code point to ECT 0, 0b10.
+	#[inline(always)]
+	fn set_explicit_congestion_notification_state_ect_0<Address: InternetProtocolAddress>(self);
+	
+	/// Sets the explicit congestion notification (ECN) code point to 0b00.
+	#[inline(always)]
+	fn set_explicit_congestion_notification_state_off<Address: InternetProtocolAddress>(self);
 }

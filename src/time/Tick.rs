@@ -88,14 +88,14 @@ impl Tick
 	}
 	
 	#[inline(always)]
-	pub fn milliseconds_to_ticks_rounded_down(milliseconds: MillisecondDuration) -> Tick
+	pub fn milliseconds_to_ticks_rounded_down(milliseconds: MonotonicMillisecondTimestamp) -> Tick
 	{
 		let milliseconds = milliseconds.0;
 		Tick(milliseconds / Self::MillisecondsPerTick)
 	}
 	
 	#[inline(always)]
-	pub fn milliseconds_to_ticks_rounded_up(milliseconds: MillisecondDuration) -> Tick
+	pub fn milliseconds_to_ticks_rounded_up(milliseconds: MonotonicMillisecondTimestamp) -> Tick
 	{
 		let milliseconds = milliseconds.0;
 		let ticks_rounded_up = (milliseconds + Self::MillisecondsPerTick - 1) / Self::MillisecondsPerTick;
@@ -104,9 +104,9 @@ impl Tick
 	
 	
 	#[inline(always)]
-	pub fn to_milliseconds(self) -> MillisecondDuration
+	pub fn to_milliseconds(self) -> MonotonicMillisecondTimestamp
 	{
-		MillisecondDuration(self.0 * MillisecondsPerTick)
+		MonotonicMillisecondTimestamp(self.0 * MillisecondsPerTick)
 	}
 	
 	#[inline(always)]

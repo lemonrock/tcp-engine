@@ -87,6 +87,12 @@ impl Default for State
 impl State
 {
 	#[inline(always)]
+	pub(crate) fn is_synchronize_sent(self) -> bool
+	{
+		self == State::SynchronizeSent
+	}
+	
+	#[inline(always)]
 	pub(crate) fn is_established(self) -> bool
 	{
 		self == State::Established
@@ -106,29 +112,5 @@ impl State
 	pub(crate) fn is_synchronized(&self) -> bool
 	{
 		self >= State::Established
-	}
-	
-	#[inline(always)]
-	pub(crate) fn is_before_closing_or_time_wait(&self) -> bool
-	{
-		self.is_before(State::Closing)
-	}
-	
-	#[inline(always)]
-	pub(crate) fn is_not_time_wait(self) -> bool
-	{
-		self != State::TimeWait
-	}
-	
-	#[inline(always)]
-	fn is_after(self, other: State) -> bool
-	{
-		self > other
-	}
-	
-	#[inline(always)]
-	fn is_before(self, other: State) -> bool
-	{
-		self < other
 	}
 }

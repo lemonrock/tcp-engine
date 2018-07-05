@@ -25,9 +25,9 @@ impl Default for PortCombinationValidity
 impl PortCombinationValidity
 {
 	#[inline(always)]
-	pub(crate) fn port_combination_is_invalid(&self, source_port_destination_port: SourcePortDestinationPort) -> bool
+	pub(crate) fn port_combination_is_invalid(&self, incoming_segment_source_port_destination_port: SourcePortDestinationPort) -> bool
 	{
-		let (remote_port, local_port) = source_port_destination_port.remote_port_local_port().to_tuple();
+		let (remote_port, local_port) = incoming_segment_source_port_destination_port.remote_port_local_port().to_tuple();
 		self.valid_remote_ports.does_not_contain(remote_port) || self.valid_local_ports.does_not_contain(local_port)
 	}
 }

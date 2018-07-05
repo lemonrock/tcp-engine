@@ -136,7 +136,10 @@ impl MillisecondDuration
 	/// Thirty seconds.
 	pub const ThirtySeconds: Self = Self::from_seconds(30);
 	
-	/// Ten seconds.
+	/// Two minutes.
+	pub const TwoMinutes: Self = Self::from_minutes(2);
+	
+	/// Five minutes.
 	pub const FiveMinutes: Self = Self::from_minutes(5);
 	
 	//  // 7,200,000 (two hours)

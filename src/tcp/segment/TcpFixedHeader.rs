@@ -29,6 +29,7 @@ impl TcpFixedHeader
 		self.acknowledgment_sequence_number = ACK.into();
 		
 		// RFC 3360 Section 2.1: "... the Reserved field should be zero when sent ... unless specified otherwise by future standards actions".
+		// RFC 4727 Section 7.2: "There are not enough reserved bits to allocate any for experimentation".
 		self.data_offset_reserved_bits_nonce_sum_flag = DataOffsetReservedBitsNonceSumFlag::from_padded_options_size(padded_options_size);
 		
 		self.flags = flags;

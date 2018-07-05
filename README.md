@@ -43,6 +43,9 @@ The license for this project is AGPL3.
 * Hardware checksum support;
 * Zero-Window probe defences (we do not zero-window probe forever, but eventually drop the connection)
     * TODO: Consider changing the zero-window probe logic to time-out after 5 seconds, as longer than this usually indicates a severe problem.
+* Duplicate TCP options are always rejected
+* Padding bytes are always validated to be zero (0x00)
+* Simultaneous Open, a TCP mis-feature, is not possible
 
 
 ## Constraints
@@ -65,6 +68,7 @@ The license for this project is AGPL3.
 
 * The use of syncookies means that very large Ethernet Jumbo frames (those over 9000 bytes) are not effectively used for IPV6 TCP packets.
 * Likewise, the use of Ethernet frames over 1500 bytes are not effectively used for IPv4.
+* Experimental TCP options are often treated as duplicates as ExID parsing is not implemented.
 
 
 ## Supported & Unsupported Standards
@@ -75,15 +79,18 @@ The license for this project is AGPL3.
 * RFC 8311 Relaxing Restrictions on Explicit Congestion Notification (ECN) Experimentation
 * RFC 8087 The Benefits of Using Explicit Congestion Notification (ECN)
 * RFC 7805 Moving Outdated TCP Extensions and TCP-Related Documents to Historic or Informational Status
+* RFC 7605 (BCP 165) Recommendations on Using Assigned Transport Port Numbers
 * RFC 7414 A Roadmap for Transmission Control Protocol (TCP) Specification Documents
 * RFC 7323 TCP Extensions for High Performance
 * RFC 6928 Increasing TCP's Initial Window
 * RFC 6691 TCP Options and Maximum Segment Size (MSS)
 * RFC 6633 Deprecation of ICMP Source Quench Messages
 * RFC 6528 Defending against Sequence Number Attacks
+* RFC 6335 (BCP 165) Internet Assigned Numbers Authority (IANA) Procedures for the Management of the Service Name and Transport Protocol Port Number Registry
 * RFC 6298 Computing TCP's Retransmission Timer
 * RFC 6247 Moving the Undeployed TCP Extensions RFC 1072, RFC 1106, RFC 1110, RFC 1145, RFC 1146, RFC 1379, RFC 1644, and RFC 1693 to Historic Status
 * RFC 6093 On the Implementation of the TCP Urgent Mechanism
+* RFC 6056 (BCP 156) Recommendations for Transport-Protocol Port Randomization
 * RFC 5961 Improving TCP's Robustness to Blind In-Window Attacks
 * RFC 5927 ICMP Attacks against TCP
 * RFC 5681 TCP Congestion Control
@@ -117,10 +124,12 @@ The license for this project is AGPL3.
 
 Implementation of these RFCs is limited to passive parsing and validation of options to make sure they are not being used as an attack vector.
 
+* RFC 6994 Shared Use of Experimental TCP Options[^No validation of `ExID`s is undertaken and duplicate `ExID`s are not detected]
 * RFC 5926 Cryptographic Algorithms for the TCP Authentication Option (TCP-AO)
 * RFC 5925 The TCP Authentication Option[^We also validate that the MD5 option is not present when the TCP authentication option is present, and vice versa]
 * RFC 5562 Adding Explicit Congestion Notification (ECN) Capability to TCP's SYN/ACK Packets
 * RFC 5482 TCP User Timeout Option[^This option can not be captured using syncookies and so can not be used]
+    * In addition, detection of a squatting option used by some CDNs is also supported and distringuished.
 * RFC 4782 Quick-Start for TCP and IP[^Recent discoveries have indicated that Quick-Start is vulnerable to attack]
 * RFC 4727 Experimental Values In IPv4, IPv6, ICMPv4, ICMPv6, UDP, and TCP Headers
 
@@ -143,7 +152,7 @@ ICMP messages are explicitly not supported. In the internet at large, they are o
 * RFC 5961 Section 3.2 Page 8: We do not send a 'Challenge ACK' when in the `LISTEN` or `SYN-RECEIVED` state, as to do so may reveal that a syncookie we sent as an initial challenge is **invalid**.
 * RFC 5961: We do not implement rate limiting of 'Challenge ACK's as this can be exploited as a side-channel.
 * RFC 4821: We take the advice given and additionally enforce a lowest advertised MSS option of 984 for IPv4 and 1220 for IPv6. In the absence of an MSS option, we force the default MSS to these values rather than 536.
-* RFC 3360 Section 2.1: We foricbly validate that the reserved field is zero.
+* RFC 3360 Section 2.1: We foricbly validate that the reserved field is zero. This seems to be consistent with RFC 4727 Section 7.2: "There are not enough reserved bits to allocate any for experimentation".
 * RFC 2675: IPv6 Jumbograms are not supported.
 * RFC 1122: We do not support ICMP messages.
 * RFC 793: URG and the urgent pointer are not appropriate in the modern internet and are considered threats.
@@ -173,6 +182,8 @@ ICMP messages are explicitly not supported. In the internet at large, they are o
 
 #### Authentication
 
+* RFC 6978 A TCP Authentication Option Extension for NAT Traversal
+    * Simply involves whether to zero-out ports and addresses when calculating the HMAC.
 * RFC 5926 Cryptographic Algorithms for the TCP Authentication Option (TCP-AO)
 * RFC 5925 The TCP Authentication Option
 
@@ -219,6 +230,7 @@ ICMP messages are explicitly not supported. In the internet at large, they are o
 
 #### Not Widely Supported
 
+* RFC 7974 An Experimental TCP Option for Host Identification
 * RFC 4828 TCP Friendly Rate Control (TFRC): The Small-Packet (SP) Variant
 * RFC 4654 TCP-Friendly Multicast Congestion Control (TFMCC): Protocol Specification
 * RFC 2675 IPv6 Jumbograms
@@ -226,8 +238,6 @@ ICMP messages are explicitly not supported. In the internet at large, they are o
 
 #### Bad Ideas
 
-* RFC 7974 An Experimental TCP Option for Host Identification
-    * Host identification seems a bad idea
 * RFC 1011 Official Internet protocols
     * URG is explicitly unsupported
 
@@ -319,38 +329,19 @@ ICMP messages are explicitly not supported. In the internet at large, they are o
 ### RFCs to explore
 
 * RFC 7661 (Updating TCP to Support Rate-Limited Traffic)
-* RFC 7605 (port number recommendations)
-* RFC 6335 0-1023         0x0000-0x03FF  System (also Well-Known)
-                 1024-49151     0x0400-0xBFFF  User (also Registered)
-                 49152-65535    0xC000-0xFFFF  Dynamic (also Private)
-RFC 7242
-Delay-Tolerant Networking TCP Convergence-Layer Protocol, June 2014
 
-RFC 6994
-Shared Use of Experimental TCP Options, August 2013
 
-RFC 6978
-A TCP Authentication Option Extension for NAT Traversal, July 2013
+RFC 7242 Delay-Tolerant Networking TCP Convergence-Layer Protocol
 
-RFC 7786
-TCP Modifications for Congestion Exposure (ConEx)
 
-BCP 165
-RFC 7605
-Recommendations on Using Assigned Transport Port Numbers
 
-RFC 6675
-A Conservative Loss Recovery Algorithm Based on Selective Acknowledgment (SACK) for TCP
-Obsoletes RFC 3517
+
+
 
 RFC 6544
 TCP Candidates with Interactive Connectivity Establishment (ICE)
 
-RFC 6429
-TCP Sender Clarification for Persist Condition, December 2011
 
-RFC 6349
-Framework for TCP Throughput Testing (useful information).
 
 BCP 159
 RFC 6191
@@ -362,11 +353,7 @@ Making TCP More Robust to Long Connectivity Disruptions (TCP-LCD)
 RFC 6062
 Traversal Using Relays around NAT (TURN) Extensions for TCP Allocations
 
-RFC 5827
-Early Retransmit for TCP and Stream Control Transmission Protocol (SCTP)
 
-RFC 5690
-Adding Acknowledgement Congestion Control to TCP
 
 RFC 5461
 TCP's Reaction to Soft Errors
@@ -376,63 +363,40 @@ BCP 142
 RFC 5382
 NAT Behavioral Requirements for TCP (updated by RFC 7857)
 
-RFC 5348
-TCP Friendly Rate Control (TFRC): Protocol Specification
 
-RFC 4953
-Defending TCP Against Spoofing Attacks
+RFC 4953 Defending TCP Against Spoofing Attacks
+RFC 3128 Protection Against a Variant of the Tiny Fragment Attack (RFC 1858)
+RFC 1858 Security Considerations for IP Fragment Filtering
 
-RFC 4808
-Key Change Strategies for TCP-MD5
+RFC 4808 Key Change Strategies for TCP-MD5
+RFC 4278 Standards Maturity Variance Regarding the TCP MD5 Signature Option (RFC 2385) and the BGP-4 Specification
+RFC 3562 Key Management Considerations for the TCP MD5 Signature Option
 
-RFC 4653
-Improving the Robustness of TCP to Non-Congestion Events
+RFC 7786 TCP Modifications for Congestion Exposure (ConEx)
+RFC 5690 Adding Acknowledgement Congestion Control to TCP
+RFC 5827 Early Retransmit for TCP and Stream Control Transmission Protocol (SCTP)
+RFC 5348 TCP Friendly Rate Control (TFRC): Protocol Specification
+RFC 4653 Improving the Robustness of TCP to Non-Congestion Events
+RFC 3742 Limited Slow-Start for TCP with Large Congestion Windows
+RFC 3708 Using TCP Duplicate Selective Acknowledgement (DSACKs) ... to Detect Spurious Retransmissions
+RFC 3649 HighSpeed TCP for Large Congestion Windows
+RFC 6349 Framework for TCP Throughput Testing (useful information).
+* RFC 6675 A Conservative Loss Recovery Algorithm Based on Selective Acknowledgment (SACK) for TCP
+    * Obsoletes RFC 3517
 
-RFC 4278
-Standards Maturity Variance Regarding the TCP MD5 Signature Option (RFC 2385) and the BGP-4 Specification
 
-RFC 3742
-Limited Slow-Start for TCP with Large Congestion Windows
+RFC 2923 TCP Problems with Path MTU Discovery
 
-RFC 3708
-Using TCP Duplicate Selective Acknowledgement (DSACKs) ... to Detect Spurious Retransmissions,
+RFC 2760 Ongoing TCP Research Related to Satellites
+RFC 2488 (BCP 28) Enhancing TCP Over Satellite Channels using Standard Mechanisms
+RFC 2757 Long Thin Networks
+RFC 3449 (BCP 69) TCP Performance Implications of Network Path Asymmetry
 
-RFC 3649
-HighSpeed TCP for Large Congestion Windows
+RFC 2553 Basic Socket Interface Extensions for IPv6
 
-RFC 3562
-Key Management Considerations for the TCP MD5 Signature Option
-
-BCP 69
-RFC 3449
-TCP Performance Implications of Network Path Asymmetry
-
-RFC 2923
-TCP Problems with Path MTU Discovery
-
-RFC 2760
-Ongoing TCP Research Related to Satellites
-
-RFC 2757
-Long Thin Networks
-
-RFC 2553
-Basic Socket Interface Extensions for IPv6
-
-RFC 2525
-Known TCP Implementation Problems
-
-BCP 28
-RFC 2488
-Enhancing TCP Over Satellite Channels using Standard Mechanisms
-
-RFC 3128
-Protection Against a Variant of the Tiny Fragment Attack (RFC 1858)
-RFC 1858
-Security Considerations for IP Fragment Filtering
-
-RFC 1180
-TCP/IP tutorial
+RFC 6429 TCP Sender Clarification for Persist Condition, December 2011
+RFC 2525 Known TCP Implementation Problems
+RFC 1180 TCP/IP tutorial
 
 
 [tcp-engine]: https://github.com/lemonrock/tcp-engine "tcp-engine GitHub page"

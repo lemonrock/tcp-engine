@@ -63,6 +63,69 @@ impl PortBitSet
 		this
 	}
 	
+	/// RFC 6056: Section 3.2: "... ephemeral port selection algorithms should use the whole range 1024-65535".
+	#[inline(always)]
+	pub(crate) fn new_with_rfc_6056_ephemeral_ports_available() -> Self
+	{
+		let mut this = Self::new();
+		unsafe { (this.0.get_unchecked_mut(0) as *mut _ as *mut u64).write_bytes(0xFF, 1024 / Self::BytesPerElement) };
+		this
+	}
+	
+	#[inline(always)]
+	pub(crate) fn find_unused_securely_randomly(&self, inclusive_minimum_hint: u16) -> Option<u16>
+	{
+		// generate a random number between 0 and 65535; iterate with wrap-around until found.
+		let random_initial_port_number = generate_hyper_thread_safe_random_u16();
+		
+		let initial_port_number = if random_initial_port_number < inclusive_minimum_hint
+		{
+			inclusive_minimum_hint
+		}
+		else
+		{
+			random_initial_port_number
+		};
+		
+		let mut port_number = initial_port_number;
+		while
+		{
+			if self.does_not_contain(port_number)
+			{
+				Some(port_number)
+			}
+			
+			if port_number == ::std::u16::MAX
+			{
+				port_number = inclusive_minimum_hint
+			}
+			else
+			{
+				port_number += 1;
+			}
+			
+			port_number != initial_port_number
+		}
+		{
+		}
+	}
+	
+	#[inline(always)]
+	pub(crate) fn union(&self, other: &self) -> Self
+	{
+		let mut this: Self = unsafe { uninitialized() };
+		
+		for index in 0 .. Self::NumberOfElements
+		{
+			unsafe
+			{
+				*this.0.get_unchecked_mut(index) = set.0.get_unchecked(index) | other.0.get_unchecked(index)
+			}
+		}
+		
+		this
+	}
+	
 	/// Does not contain port number?
 	#[inline(always)]
 	pub fn does_not_contain(&self, port_number: u16) -> bool

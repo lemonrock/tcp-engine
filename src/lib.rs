@@ -65,6 +65,7 @@ pub mod time;
 
 
 use ::arrayvec::ArrayVec;
+use ::hyper_thread_random::generate_hyper_thread_safe_random_u16;
 use ::hyper_thread_random::generate_hyper_thread_safe_random_u32;
 use ::hyper_thread_random::generate_hyper_thread_safe_random_u64;
 use ::md5::Digest as Md5Digest;

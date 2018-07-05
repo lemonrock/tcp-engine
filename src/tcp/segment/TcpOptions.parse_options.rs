@@ -516,6 +516,10 @@ macro_rules! parse_options
 					// Unsupported: Draft TCP Jumbo Options: https://www.imperialviolet.org/binary/jumbo-tcp-options.html
 					// 42 or 43
 					
+					// RFC 4727 Section 7.3.
+					253 _ => parse_unsupported_or_unknown_option!($packet, pointer_to_option_kind, end_pointer, duplicate_unknown_options, 253),
+					254 _ => parse_unsupported_or_unknown_option!($packet, pointer_to_option_kind, end_pointer, duplicate_unknown_options, 254),
+					
 					// RFC 1122 Section 4.2.2.5: "A TCP MUST ignore without error any TCP option it does not implement, assuming that the option has a length field (all TCP options defined in the future will have length fields)."
 					option_kind @ _ => parse_unsupported_or_unknown_option!($packet, pointer_to_option_kind, end_pointer, duplicate_unknown_options, option_kind),
 				};

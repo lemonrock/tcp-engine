@@ -72,139 +72,181 @@ The license for this project is AGPL3.
 
 ### Supported RFCs (or, where informational, taken note of)
 
-* RFC 8311
-* RFC 8087
-* RFC 7805
-* RFC 7414
-* RFC 7323
-* RFC 6928
-* RFC 6824
-* RFC 6691
-* RFC 6675
-* RFC 6633 (by default as ICMP messages are explicitly not supported)
-* RFC 6528
-* RFC 6298
-* RFC 6247
-* RFC 6093 (segments with URG are considered a threat)
-* RFC 5961
-* RFC 5927 (by default as ICMP messages are explicitly not supported)
-* RFC 5681
-* RFC 4987
-* RFC 4821 (although not PathMTU discovery)
-* RFC 4015
-* RFC 3540
-* RFC 3465
-* RFC 3390
-* RFC 3360
-* RFC 3168
-* RFC 3042
-* RFC 2988
-* RFC 2884
-* RFC 2873
-* RFC 2675
-* RFC 2581
-* RFC 2460
-* RFC 2416
-* RFC 2415
-* RFC 2398 (FYI 33)
-* RFC 2385 (obsoleted by RFC 5925 but still in widespread use)
-* RFC 2151 (FYI 30)
-* RFC 2140
-* RFC 2018 (but no use is made of SACK blocks)
-* RFC 1936
-* RFC 1644
-* RFC 1624
-* RFC 1470 (FYI 2)
-* RFC 1323
-* RFC 1263
+* RFC 8311 Relaxing Restrictions on Explicit Congestion Notification (ECN) Experimentation
+* RFC 8087 The Benefits of Using Explicit Congestion Notification (ECN)
+* RFC 7805 Moving Outdated TCP Extensions and TCP-Related Documents to Historic or Informational Status
+* RFC 7414 A Roadmap for Transmission Control Protocol (TCP) Specification Documents
+* RFC 7323 TCP Extensions for High Performance
+* RFC 6928 Increasing TCP's Initial Window
+* RFC 6691 TCP Options and Maximum Segment Size (MSS)
+* RFC 6633 Deprecation of ICMP Source Quench Messages
+* RFC 6528 Defending against Sequence Number Attacks
+* RFC 6298 Computing TCP's Retransmission Timer
+* RFC 6247 Moving the Undeployed TCP Extensions RFC 1072, RFC 1106, RFC 1110, RFC 1145, RFC 1146, RFC 1379, RFC 1644, and RFC 1693 to Historic Status
+* RFC 6093 On the Implementation of the TCP Urgent Mechanism
+* RFC 5961 Improving TCP's Robustness to Blind In-Window Attacks
+* RFC 5927 ICMP Attacks against TCP
+* RFC 5681 TCP Congestion Control
+* RFC 4987 TCP SYN Flooding Attacks and Common Mitigations
+* RFC 4821 Packetization Layer Path MTU Discovery
+* RFC 3465 TCP Congestion Control with Appropriate Byte Counting (ABC)
+* RFC 3390 Increasing TCP's Initial Window
+* RFC 3360 Inappropriate TCP Resets Considered Harmful
+* RFC 3168 The Addition of Explicit Congestion Notification (ECN) to IP
+* RFC 2884 Performance Evaluation of Explicit Congestion Notification (ECN) in IP Networks
+* RFC 2873 TCP Processing of the IPv4 Precedence Field
+* RFC 2460 Internet Protocol, Version 6 (IPv6) Specification
+* RFC 2416 When TCP Starts Up With Four Packets Into Only Three Buffers
+* RFC 2415 Simulation Studies of Increased Initial TCP Window Size
+* RFC 2398 (FYI 33) Some Testing Tools for TCP Implementors
+* RFC 2385 Protection of BGP Sessions via the TCP MD5 Signature Option
+    * Obsoleted by RFC 5925 but still in widespread use
+* RFC 2151 (FYI 30) A Primer On Internet and TCP/IP Tools and Utilities
+* RFC 2140 TCP Control Block Interdependence
+* RFC 1936 Implementing the Internet Checksum in Hardware
+* RFC 1624 Computation of the Internet Checksum via Incremental Update
+* RFC 1470 (FYI 2) FYI on a Network Management Tool Catalog: Tools for Monitoring and Debugging TCP/IP Internets and Interconnected Devices
+* RFC 1263 TCP Extensions Considered Harmful
 * RFC 1141 (and as updated by RFC 1624)
-* RFC 1122
-* RFC 1025
-* RFC 793
-* RFC 792
+* RFC 1122 Requirements for Internet Hosts -- Communication Layers
+* RFC 1025 TCP and IP bake off
+* RFC 793 (STD 7) Transmission Control Protocol
 
 
 ### Passively Supported RFCs
 
-These are mostly to support passive parsing and validation of options to make sure they are not being used as an attack vector.
+Implementation of these RFCs is limited to passive parsing and validation of options to make sure they are not being used as an attack vector.
 
-* RFC 5926
-* RFC 5925
-* RFC 5562
-* RFC 5482
-* RFC 4782
-* RFC 4727
-
+* RFC 5926 Cryptographic Algorithms for the TCP Authentication Option (TCP-AO)
+* RFC 5925 The TCP Authentication Option[^We also validate that the MD5 option is not present when the TCP authentication option is present, and vice versa]
+* RFC 5562 Adding Explicit Congestion Notification (ECN) Capability to TCP's SYN/ACK Packets
+* RFC 5482 TCP User Timeout Option[^This option can not be captured using syncookies and so can not be used]
+* RFC 4782 Quick-Start for TCP and IP[^Recent discoveries have indicated that Quick-Start is vulnerable to attack]
+* RFC 4727 Experimental Values In IPv4, IPv6, ICMPv4, ICMPv6, UDP, and TCP Headers
 
 
 ### Non-RFC Documents of Significant Merit
 
 * Processing Incoming Segments. This is a markdown document synthesizing many of the RFCs above in to a readable, and referencable, document. Many places in the code reference numbered sections in the generated PDF.
 * [Laminar TCP Draft](https://tools.ietf.org/html/draft-mathis-tcpm-tcp-laminar-01). Provides a robust explanation of the subtle meanings of the congestion control variables.
-* [A Finite State Machine Model of TCP Connections in the Transport Layer", J. Treurniet and J. H. Lefebvre, 2003](http://cradpdf.drdc-rddc.gc.ca/PDFS/unc25/p520460.pdf). Pages 5 & 6 show a revised state model which makes it clear that many segment flag variations aren't appropriate.
+* [A Finite State Machine Model of TCP Connections in the Transport Layer", J. Treurniet and J. H. Lefebvre, 2003](http://cradpdf.drdc-rddc.gc.ca/PDFS/unc25/p520460.pdf). Pages 5 & 6 document a revised state model which makes it clear that many segment flag variations aren't appropriate.
+
+
+### RFC Violations
+
+ICMP messages are explicitly not supported. In the internet at large, they are often blocked, have been frequently used as attack vectors and are not essential to TCP operation. In practice, only ICMP messages relating to PathMTU discovery and host unreachability are of interest. However, both of these can be used to perform Denial-of-Service or 'Slow' attacks, to both servers and clients, and so we do not make use of them.
+
+* RFC 6298 Section 5.7: We choose to use 3 × 128 milliseconds rather than 3 seconds.
+* RFC 6298 Section 2.4: We choose a default minimum of 128 milliseconds rather than one second.
+* RFC 6298 Section 2.1: We use an initial minimum of 128 milliseconds OR the most recently cached value if available.
+* RFC 6093: We blackhole any segments with an `URG` flag bit set.
+* RFC 5961 Section 3.2 Page 8: We do not send a 'Challenge ACK' when in the `LISTEN` or `SYN-RECEIVED` state, as to do so may reveal that a syncookie we sent as an initial challenge is **invalid**.
+* RFC 5961: We do not implement rate limiting of 'Challenge ACK's as this can be exploited as a side-channel.
+* RFC 4821: We take the advice given and additionally enforce a lowest advertised MSS option of 984 for IPv4 and 1220 for IPv6. In the absence of an MSS option, we force the default MSS to these values rather than 536.
+* RFC 3360 Section 2.1: We foricbly validate that the reserved field is zero.
+* RFC 2675: IPv6 Jumbograms are not supported.
+* RFC 1122: We do not support ICMP messages.
+* RFC 793: URG and the urgent pointer are not appropriate in the modern internet and are considered threats.
+* RFC 793: We blackhole (ignore) any segments with the `ACK` flag bit set in the `LISTEN` or `SYN-RECEIVED` state as these have no legitimate purpose and normally indicate a scan according to pages 5 & 6 of [A Finite State Machine Model of TCP Connections in the Transport Layer", J. Treurniet and J. H. Lefebvre, 2003](http://cradpdf.drdc-rddc.gc.ca/PDFS/unc25/p520460.pdf).
+* RFC 793, Page 72: "If the segment acknowledgment is not acceptable, form a reset segment, <SEQ=SEG.ACK><CTL=RST>, and send it". This is violated becase to send a reset is to either reveal to a potential attacker we exist or to inadvertently abort an existing connection because of a spoofed packet.
+* RFC 792: We do not support ICMP messages.
+
+
+#### To finish
+
+* RFC 5681 TCP Congestion Control
+* RTO timer scheduling
+* Passing up of payloads
+* Writing of payloads
+* When to invoke keep-alive and user time out / idle detection
 
 
 ### TODO RFCs
 
+
 #### SACKs
 
-* RFC 2018 (Selective Acknowledgments)
-* RFC 2883 (An Extension to the Selective Acknowledgement (SACK) Option for TCP)
-
-
-#### Eiffel
-
-* RFC 3522 (The Eifel Detection Algorithm for TCP)
-* RFC 4015 (The Eifel Response Algorithm for TCP)
+* RFC 6675 A Conservative Loss Recovery Algorithm Based on Selective Acknowledgment (SACK) for TCP
+* RFC 2883 An Extension to the Selective Acknowledgement (SACK) Option for TCP
+* RFC 2018 TCP Selective Acknowledgment Options
 
 
 #### Authentication
 
-* RFC 5925 (Authentication)
-* RFC 5926 (Authentication)
+* RFC 5926 Cryptographic Algorithms for the TCP Authentication Option (TCP-AO)
+* RFC 5925 The TCP Authentication Option
 
 
 #### Congestion Control
 
-* RFC 3042 (Enhancing TCP's Loss Recovery Using Limited Transmit)
-* RFC 4138 (Forward RTO-Recovery (F-RTO): An Algorithm for Detecting Spurious Retransmission Timeouts with TCP and the Stream Control Transmission Protocol (SCTP))
-* RFC 5682 (Forward RTO discovery)
-* RFC 6582 (NewReno)
-* RFC 6937 (Proportional Rate Reduction (PRR))
-* RFC 8257 (Data Centre TCP / Congestion Control)
 * Google BBR
+* RFC 8257 Data Center TCP (DCTCP): TCP Congestion Control for Data Centers
+* RFC 6937 Proportional Rate Reduction for TCP
+* RFC 6582 The NewReno Modification to TCP's Fast Recovery Algorithm
+* RFC 5682 Forward RTO-Recovery (F-RTO): An Algorithm for Detecting Spurious Retransmission Timeouts with TCP
+* RFC 4138 Forward RTO-Recovery (F-RTO): An Algorithm for Detecting Spurious Retransmission Timeouts with TCP and the Stream Control Transmission Protocol (SCTP)
+* RFC 4015 The Eifel Response Algorithm for TCP
+* RFC 3522 The Eifel Detection Algorithm for TCP
+* RFC 3042 Enhancing TCP's Loss Recovery Using Limited Transmit
 
 
 #### Other Developments
 
-* RFC 1337 (TIME-WAIT assassination hazards)
-* RFC 7413 (TCP Fast Open)
-* RFC 4281 (Path MTU discovery)
+* RFC 7413 TCP Fast Open
+* RFC 4821 Packetization Layer Path MTU Discovery
+* RFC 1337 TIME-WAIT Assassination Hazards in TCP
 
 
 #### Statistics
 
-* RFC 1155 (MIB)
-* RFC 1156 (MIB)
-* RFC 4022 (Basic Statistics)
-* RFC 4898 (Extended Statistics)
+* RFC 4898 TCP Extended Statistics MIB
+* RFC 4022 Management Information Base for the Transmission Control Protocol (TCP)
+* RFC 1156 Management Information Base for network management of TCP/IP-based internets
+* RFC 1155 Structure and identification of management information for TCP/IP-based internets
 
 
 ### Explicitly unsupported RFCs
 
-* RFC 8041 (Multipath TCP)
-* RFC 7974 (Host identification seems a bad idea)
-* RFC 7430 (Multipath TCP)
-* RFC 6897 (Multipath TCP)
-* RFC 6824 (Multipath TCP)
-* RFC 6356 (Multipath TCP)
-* RFC 6182 (Multipath TCP)
-* RFC 6181 (Multipath TCP)
+
+#### ICMP
+
+* RFC 8201 Path MTU Discovery for IP version 6
+* RFC 1812 Requirements for IP Version 4 Routers
+* RFC 1191 Path MTU Discovery
+* RFC 844 Who talks ICMP, too? - Survey of 18 February 1983
+* RFC 792 (STD 5) Internet Control Message Protocol
+
+
+#### Not Widely Supported
+
+* RFC 4828 TCP Friendly Rate Control (TFRC): The Small-Packet (SP) Variant
+* RFC 4654 TCP-Friendly Multicast Congestion Control (TFMCC): Protocol Specification
+* RFC 2675 IPv6 Jumbograms
+
+
+#### Bad Ideas
+
+* RFC 7974 An Experimental TCP Option for Host Identification
+    * Host identification seems a bad idea
+* RFC 1011 Official Internet protocols
+    * URG is explicitly unsupported
+
+
+#### Multipath TCP
+
+* RFC 8041 Use Cases and Operational Experience with Multipath TCP
+* RFC 7430 Analysis of Residual Threats and Possible Fixes for Multipath TCP (MPTCP)
+* RFC 6897 Multipath TCP (MPTCP) Application Interface Considerations
+* RFC 6824 TCP Extensions for Multipath Operation with Multiple Addresses
+* RFC 6356 Coupled Congestion Control for Multipath Transport Protocols
+* RFC 6182 Architectural Guidelines for Multipath TCP Development
+* RFC 6181 Threat Analysis for TCP Extensions for Multipath Operation with Multiple Addresses
+
+
+#### Obsolete, Historic, Made Informational or April Fool's
+
 * RFC 6013 (obsoleted by supported RFC 7805)
 * RFC 5841 (April Fool's Day RFC)
-* RFC 5562 (not widely supported)
-* RFC 4828 (not widely supported)
-* RFC 4654 (not widely supported)
 * RFC 4614 (obsoleted by RFC 7414)
 * RFC 3782 (obsoleted by supported RFC 6582)
 * RFC 3540 (made historic by supported RFC 8311)
@@ -219,8 +261,8 @@ These are mostly to support passive parsing and validation of options to make su
 * RFC 2147 (obsoleted by supported RFC 2675)
 * RFC 2012 (obsoleted by RFC 4022)
 * RFC 2001 (obsoleted by obsoleted RFC 2581)
+* RFC 1981 (obsoleted by unsupported RFC 8201)
 * RFC 1948 (obsoleted by supported RFC 6528)
-* RFC 1812 (ICMP messages are explicitly not supported)
 * RFC 1739 (obsoleted by supported RFC 2151)
 * RFC 1716 (obsoleted by explicitly unsupported RFC 1812)
 * RFC 1693 (obsoleted by supported RFC 6247)
@@ -241,11 +283,10 @@ These are mostly to support passive parsing and validation of options to make su
 * RFC 1071 (obsoleted by supported RFC 1141)
 * RFC 1066 (obsoleted by RFC 1156)
 * RFC 1065 (obsoleted by RFC 1155)
-* RFC 1011 (URG is explicitly unsupported)
 * RFC 1009 (obsoleted by explicitly unsupported RFC 1812)
 * RFC 991 (obsoleted by unsupported RFC 1011)
 * RFC 964 (made informational by supported RFC 7805)
-* RFC 962 (no longer relevant)
+* RFC 962 (effectively historic)
 * RFC 896 (obsoleted by supported RFC 7805)
 * RFC 889 (made informational by supported RFC 7805)
 * RFC 879 (obsoleted by supported RFC 7805)
@@ -254,7 +295,6 @@ These are mostly to support passive parsing and validation of options to make su
 * RFC 847 (effectively historic)
 * RFC 846 (obsoleted by obsoleted RFC 847)
 * RFC 845 (obsoleted by obsoleted RFC 846)
-* RFC 844 (ICMP messages are explicitly not supported)
 * RFC 843 (obsoleted by obsoleted RFC 845)
 * RFC 842 (obsoleted by obsoleted RFC 843)
 * RFC 839 (obsoleted by obsoleted RFC 842)
@@ -393,23 +433,6 @@ Security Considerations for IP Fragment Filtering
 
 RFC 1180
 TCP/IP tutorial
-
-### RFC violations
-
-ICMP messages are explicitly not supported. In the internet at large, they are often blocked, have been frequently used as attack vectors and are not essential to TCP operation. In practice, only ICMP messages relating to PathMTU discovery and host unreachability are of interest. However, both of these can be used to perform Denial-of-Service or 'Slow' attacks, to both servers and clients, and so we do not make use of them.
-
-* RFC 792: We do not support ICMP messages.
-* RFC 793, Page 72: "If the segment acknowledgment is not acceptable, form a reset segment, <SEQ=SEG.ACK><CTL=RST>, and send it". This is violated becase to send a reset is to either reveal to a potential attacker we exist or to inadvertently abort an existing connection because of a spoofed packet.
-* RFC 793: We blackhole (ignore) any segments with the `ACK` flag bit set in the `LISTEN` or `SYN-RECEIVED` state as these have no legitimate purpose and normally indicate a scan according to pages 5 & 6 of [A Finite State Machine Model of TCP Connections in the Transport Layer", J. Treurniet and J. H. Lefebvre, 2003](http://cradpdf.drdc-rddc.gc.ca/PDFS/unc25/p520460.pdf).
-* RFC 793: URG and the urgent pointer are not appropriate in the modern internet and are considered threats.
-* RFC 1122: We do not support ICMP messages.
-* RFC 2675: IPv6 Jumbograms are not supported.
-* RFC 3360 Section 2.1: We foricbly validate that the reserved field is zero.
-* RFC 4821: We take the advice given and additionally enforce a lowest advertised MSS option of 984 for IPv4 and 1220 for IPv6. In the absence of an MSS option, we force the default MSS to these values rather than 536.
-* RFC 5961 Section 3.2 Page 8: We do not send a 'Challenge ACK' when in the `LISTEN` or `SYN-RECEIVED` state, as to do so may reveal that a syncookie we sent as an initial challenge is **invalid**.
-* RFC 6298 Section 2.1: We use an initial minimum of 128 milliseconds OR the most recently cached value if available.
-* RFC 6298 Section 2.4: We choose a default minimum of 128 milliseconds rather than one second.
-* RFC 6298 Section 5.7: We choose to use 3 × 128 milliseconds rather than 3 seconds.
 
 
 [tcp-engine]: https://github.com/lemonrock/tcp-engine "tcp-engine GitHub page"

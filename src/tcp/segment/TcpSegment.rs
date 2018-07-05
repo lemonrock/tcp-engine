@@ -40,7 +40,7 @@ impl TcpSegment
 	/// TCP folklore seems to be that these are not considered part of the data stream.
 	/// Hence we treat `SEG.LEN` of a RST as zero (0), even when there is a payload.
 	#[inline(always)]
-	pub(crate) fn LEN(&self, payload_length: usize) -> u32
+	pub(crate) fn LEN(&self, payload_size: usize) -> u32
 	{
 		let SEG = self;
 		
@@ -54,7 +54,7 @@ impl TcpSegment
 		}
 		else
 		{
-			payload_length as u32
+			payload_size as u32
 		}
 	}
 	

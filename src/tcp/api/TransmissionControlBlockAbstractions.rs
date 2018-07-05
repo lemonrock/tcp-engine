@@ -5,7 +5,7 @@
 /// Abstractions so that a TransmissionControlBlock can be used with different platforms and network stacks.
 pub trait TransmissionControlBlockAbstractions: Sized
 {
-	/// Type of events receiver creator.
+	/// Type of api receiver creator.
 	type EventsReceiverCreator: TransmissionControlBlockEventsReceiverCreator;
 	
 	/// Internet Protocol Address.
@@ -47,4 +47,18 @@ pub trait TransmissionControlBlockAbstractions: Sized
 	/// If there is no specific entry in the cache, an implementation can use `Self::Address::DefaultPathMaximumTransmissionUnitSize`.
 	#[inline(always)]
 	fn current_path_maximum_transmission_unit(&self, remote_internet_protocol_address: &Self::Address) -> u16;
+	
+	/// Enqueue a packet for outbound transmission.
+	///
+	/// If full, then the queue should try to transmit to the network card as many packets as possible, eg using DPDK `TransmitQueue::transmit_packets_in_a_burst`. In practice, an implementation is free to transmit whenever it wants; it need not maintain an outbound queue (although that is likely to be inefficient).
+	///
+	/// This may require the use of an UnsafeCell, RefCell or the like for internal mutation.
+	///
+	/// Sending or enqueuing a packet should eventually result in its reference count being decremented. In DPDK, this is done by the poll mode driver.
+	#[inline(always)]
+	fn enqueue_packet_transmitting_if_full(&self, packet: Self::Packet);
+	
+	/// Immediately transmit all enqueue packets.
+	#[inline(always)]
+	fn transmit_all_enqueued_packets(&self);
 }

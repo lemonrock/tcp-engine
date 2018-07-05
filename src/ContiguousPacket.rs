@@ -3,6 +3,10 @@
 
 
 /// A contiguous packet.
+///
+/// Packets are considered to have an internal reference count which is modified by `decrement_reference_count()` and `increment_reference_count()`.
+///
+/// It is assumed that packets start when created with a reference count of one (1), that reusing a packet does not change the reference count, and that the reference count upon reaching zero (0) causes the packet to be freed.
 pub trait ContiguousPacket: Copy
 {
 	/// Obtains the source Internet Protocol (IP) version 4 or version 6 address.
@@ -13,16 +17,29 @@ pub trait ContiguousPacket: Copy
 	#[inline(always)]
 	fn destination_internet_protocol_address<Address: InternetProtocolAddress>(self) -> &Address;
 	
-	/// Override this to make use of the explanation, for example, by putting it into a circular ring buffer for debugging purposes.
+	/// Use this to make use of the explanation provided when a packet is dropped, for example, by putting it into a circular ring buffer for debugging purposes.
+	///
+	/// After this is called the `decrement_reference_count()` is called and it is likely the packet then references invalid memory.
 	#[inline(always)]
-	fn drop_packet(self, _explanation: &'static str)
-	{
-		self.free_packet()
-	}
+	fn dropped_packet_explanation(self, explanation: &'static str);
 	
-	/// DPDK: `PacketBufferExt.free_direct_contiguous_packet()`.
+	/// Decreases the reference count.
+	///
+	/// This can happen when:
+	///
+	/// * A TCP connection is aborted and the retransmission queue is dropped;
+	/// * A ParsedTcpSegment is dropped with an ignored or unwanted packet;
+	///
+	/// When using DPDK, this is also implicitly called by the underlying poll mode driver once the packet has been transmitted.
+	/// DPDK hardware offload for transmission should avoid configuring `DEV_TX_OFFLOAD_MBUF_FAST_FREE`.
 	#[inline(always)]
-	fn free_packet(self);
+	fn decrement_reference_count(self);
+	
+	/// Increases the reference count.
+	///
+	/// Used when a packet is placed on the retransmission queue.
+	#[inline(always)]
+	fn increment_reference_count(self);
 	
 	/// DPDK: `PacketBufferExt.packet_length_if_contiguous()`.
 	#[inline(always)]

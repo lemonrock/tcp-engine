@@ -26,7 +26,7 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> Drop for ParsedTcpSegme
 	{
 		if let Some(packet) = self.packet
 		{
-			packet.free_packet()
+			packet.decrement_reference_count()
 		}
 	}
 }
@@ -121,6 +121,14 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 		
 		validate_authentication_when_synchronized!(self, transmission_control_block);
 		
+		if transmission_control_block.timestamps_are_required_in_all_segments_except_reset()
+		{
+			if unlikely(self.reset_flag_unset() && self.tcp_options.does_not_have_timestamps())
+			{
+				invalid!(self, "TCP Segment received (which was not Reset) which was missing a Timestamps option after timestamps negotiated")
+			}
+		}
+		
 		match transmission_control_block.state()
 		{
 			Closed => unreachable_synthetic_state!("TCP state Closed is never actually used"),
@@ -164,7 +172,7 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 				
 				if SEG.ACK == SND.NXT
 				{
-					transmission_control_block.error_connection_reset(self.interface)
+					transmission_control_block.aborted(self.interface, self.now)
 				}
 				else
 				{
@@ -192,10 +200,13 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 					invalid!(SEG, "TCP SynchronizeAcknowledgment indicates support of ECN but we did not request it")
 				}
 				
-				// RFC 3168 Section 6.1.1: "A host MUST NOT set ECT on SYN or SYN-ACK packets".
-				if unlikely(self.packet.explicit_congestion_notification().is_ect_set())
+				if cfg!(not(feature = "rfc-8311-permit-explicit-congenstion-markers-on-all-packets"))
 				{
-					invalid!(SEG, "TCP packet has an Internet Protocol Explicit Congestion Notification (ECN) ECT(0) or ECT(1) code point set for a SynchronizeAcknowledgment segment")
+					// RFC 3168 Section 6.1.1: "A host MUST NOT set ECT on SYN or SYN-ACK packets".
+					if unlikely(self.packet.explicit_congestion_notification().is_ect_or_congestion_experienced_set())
+					{
+						invalid!(SEG, "TCP packet has an Internet Protocol Explicit Congestion Notification (ECN) set for a SynchronizeAcknowledgment segment in violation of RFC 3168")
+					}
 				}
 				
 				self.synchronize_sent_received_acknowledgment(transmission_control_block)
@@ -240,7 +251,7 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 		
 		rfc_5961_5_2_acknowledgment_is_acceptable!(self, transmission_control_block);
 		
-		self.processing_incoming_segments_4_5_2_2_established_and_similar_for_other_states(transmission_control_block);
+		self.processing_incoming_segments_4_5_2_2_established_and_similar_for_other_states_process_acknowledgment(transmission_control_block);
 		
 		self.processing_incoming_segments_4_6_check_the_urg_bit();
 		
@@ -271,7 +282,7 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 		
 		rfc_5961_5_2_acknowledgment_is_acceptable!(self, transmission_control_block);
 		
-		self.processing_incoming_segments_4_5_2_2_established_and_similar_for_other_states(transmission_control_block);
+		self.processing_incoming_segments_4_5_2_2_established_and_similar_for_other_states_process_acknowledgment(transmission_control_block);
 		
 		self.processing_incoming_segments_4_6_check_the_urg_bit();
 		
@@ -334,7 +345,7 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 		
 		rfc_5961_5_2_acknowledgment_is_acceptable!(self, transmission_control_block);
 		
-		self.processing_incoming_segments_4_5_2_2_established_and_similar_for_other_states(transmission_control_block);
+		self.processing_incoming_segments_4_5_2_2_established_and_similar_for_other_states_process_acknowledgment(transmission_control_block);
 		// TODO: In addition to the processing for the ESTABLISHED state, if our FIN is now acknowledged then enter FIN-WAIT-2 and continue processing in that state.
 		
 		self.processing_incoming_segments_4_6_check_the_urg_bit();
@@ -366,7 +377,7 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 		
 		rfc_5961_5_2_acknowledgment_is_acceptable!(self, transmission_control_block);
 		
-		self.processing_incoming_segments_4_5_2_2_established_and_similar_for_other_states(transmission_control_block);
+		self.processing_incoming_segments_4_5_2_2_established_and_similar_for_other_states_process_acknowledgment(transmission_control_block);
 		// TODO: In addition to the processing for the ESTABLISHED state, if the retransmission queue is empty, the user’s CLOSE can be acknowledged (“ok”) but do not delete the TCB.
 		
 		self.processing_incoming_segments_4_6_check_the_urg_bit();
@@ -398,7 +409,7 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 		
 		rfc_5961_5_2_acknowledgment_is_acceptable!(self, transmission_control_block);
 		
-		self.processing_incoming_segments_4_5_2_2_established_and_similar_for_other_states(transmission_control_block);
+		self.processing_incoming_segments_4_5_2_2_established_and_similar_for_other_states_process_acknowledgment(transmission_control_block);
 		// TODO: In addition to the processing for the ESTABLISHED state, if the ACK acknowledges our FIN then enter the TIME-WAIT state, otherwise ignore the segment.
 		
 		self.processing_incoming_segments_4_6_check_the_urg_bit();
@@ -455,14 +466,19 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 {
 	fn synchronize_sent_received_acknowledgment(&mut self, transmission_control_block: &TransmissionControlBlock<TCBA>)
 	{
-		// TODO: retransmision_time_out.reset_after_establishment_of_state_if_we_sent_the_first_synchronize_segment_and_the_timer_expired();
+		// TODO: Zero window nonsense - not a problem for sending this ack, but potentially a problem thereafter.
+		// TODO: Turn retransmission timer off [from initial syn] / on - likewise need to enable it for initial SYN.
+		// TODO: Turn keep-alive / user time out timers on / off.
 		
 		let SEG = self;
 		
-		// RFC 3168 Section 6.1.1: "A host MUST NOT set ECT on SYN or SYN-ACK packets".
-		if unlikely(self.packet.explicit_congestion_notification().is_ect_set())
+		if cfg!(not(feature = "rfc-8311-permit-explicit-congenstion-markers-on-all-packets"))
 		{
-			invalid!(SEG, "TCP packet has an Internet Protocol Explicit Congestion Notification (ECN) ECT(0) or ECT(1) code point set for a SynchronizeAcknowledgment segment")
+			// RFC 3168 Section 6.1.1: "A host MUST NOT set ECT on SYN or SYN-ACK packets".
+			if unlikely(self.packet.explicit_congestion_notification().is_ect_or_congestion_experienced_set())
+			{
+				invalid!(SEG, "TCP packet has an Internet Protocol Explicit Congestion Notification set for a SynchronizeAcknowledgment segment in violation of RFC 3168")
+			}
 		}
 		
 		rfc_5961_5_2_acknowledgment_is_acceptable!(self, transmission_control_block);
@@ -518,13 +534,9 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 				MAX.SND.WND = SND.WND
 			}
 			
-			self.process_acceptable_acknowledgment(transmission_control_block, SND);
-			transmission_control_block.set_state(State::Established);
-			transmission_control_block.congestion_control.recalculate_sender_maximum_segment_size_when_entering_established_state();
-			transmission_control_block.events_receiver.client_connection_established();
 			
-			// TODO: If using TCP Fast-Open, we can send data on the third part of the three-way handshake
-			// TODO: ?Thus we need to call processing_incoming_segments_4_7_process_the_segment_text() before sending this ack?
+			transmission_control_block.enter_state_established();
+			
 			self.interface.send_final_acknowledgment_of_three_way_handshake(self.reuse_packet(), transmission_control_block, self.now, Flags::Acknowledgment, SND.NXT, RCV.NXT);
 			
 			self.processing_incoming_segments_4_6_check_the_urg_bit();
@@ -598,8 +610,41 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 	
 	/// Processing of the acknowledgment for Processing Incoming Segments 4.5.2.2, 4.5.2.5 and the first parts of 4.5.2.4 and 4.5.2.6.
 	#[inline(always)]
-	fn processing_incoming_segments_4_5_2_2_established_and_similar_for_other_states(&mut self, transmission_control_block: &mut TransmissionControlBlock<TCBA>)
+	fn processing_incoming_segments_4_5_2_2_established_and_similar_for_other_states_process_acknowledgment(&mut self, transmission_control_block: &mut TransmissionControlBlock<TCBA>)
 	{
+		xxx
+		/*
+		
+		RFC 6298
+		
+TODO: 5.  Managing the RTO Timer
+
+   An implementation MUST manage the retransmission timer(s) in such a
+   way that a segment is never retransmitted too early, i.e., less than
+   one RTO after the previous transmission of that segment.
+
+   The following is the RECOMMENDED algorithm for managing the
+   retransmission timer:
+
+   (5.1) Every time a packet containing data is sent (including a
+         retransmission\*), if the timer is not running, start it running
+         so that it will expire after RTO seconds (for the current value
+         of RTO).
+
+   (5.2) When all outstanding data has been acknowledged, turn off the
+         retransmission timer.
+
+   (5.3) When an ACK is received that acknowledges new data, restart the
+         retransmission timer so that it will expire after RTO seconds
+         (for the current value of RTO).
+
+\* and zero window probe
+
+
+		*/
+		
+		// TODO: RFC 3168 6.1.2 Paragraph 3: "... the sending TCP MUST reset the retransmit timer on receiving the ECN-Echo packet when the congestion window is one (1 MSS)".
+		
 		let SEG = self;
 		let SND = &mut transmission_control_block.SND;
 		
@@ -611,8 +656,6 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 				{
 					explicit_congestion_notification_state.incoming_data_packet_had_explicit_congestion_echo_flag_set();
 					
-					// TODO: RFC 3168 6.1.2 Paragraph 3: "... the sending TCP MUST reset the retransmit timer on receiving the ECN-Echo packet when the congestion window is one (1 MSS)".
-					
 					// We need to reduce CWR; the line above ensures the CWR flag gets set.
 					CongestionControlSignal::CC_ECN.signal();
 					
@@ -623,40 +666,50 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
    					Similar logic is given for RTT calculations.
    					
    					What is a 'window of data'? One segment that we sent initially? - probably.
-   					
-   					
-   					
-   					When an ECN-Capable TCP sender reduces its congestion window for any reason (because of a retransmit timeout, a Fast Retransmit, or in response to an ECN Notification), the TCP sender sets the CWR flag in the TCP header of the first new data packet sent after the window reduction.
+   						- This gets messy for partial acks or when using GSO / TSO.
 					*/
 				}
 			}
 			
 			let bytes_acknowledged = SND.UNA - SEG.ACK;
 			
-			let most_recent_segment_timestamp =
+			let acknowledged_segment_timestamp =
 			{
 				SND.UNA = SEG.ACK;
-				transmission_control_block.remove_all_sent_segments_up_to(SND.UNA)
+				transmission_control_block.remove_first_segment_sent_but_unacknowledged(SND.UNA)
 			};
 			
 			transmission_control_block.record_last_acknowledgment_which_moved_SND_UNA(self.now);
 			transmission_control_block.increase_bytes_acknowledged(bytes_acknowledged);
 			
 			
-			
-			// TODO: RFC 3465 Section 3.1: "When bytes_acked becomes greater than or equal to the value of the congestion window, bytes_acked is reduced by the value of cwnd".
-			
-			// Processing Incoming Segments 4.5.2.2: "Also compute a new estimate of round-trip time.
-			// If Snd.TS.OK bit is on, use Snd.TSclock - SEG.TSecr; otherwise, use the elapsed time since the first segment in the retransmission queue was sent".
-			if let Some(timestamp) = most_recent_segment_timestamp
+			if acknowledged_segment_timestamp___was_fully_acknowledged_at_last
 			{
-				match timestamps_option
+				let fully_acknowledged_segment_timestamp = acknowledged_segment_timestamp;
+				transmission_control_block.compute_a_new_estimate_of_round_trip_time_for_fully_acknowledged_segments(self.now, fully_acknowledged_segment_timestamp, self.tcp_options.timestamps.as_ref());
+				
+				// RFC 6298 Section 5: "(5.2) When all outstanding data has been acknowledged, turn off the retransmission timer".
+				//
+				// What the RFC doesn't say is TURN ON the zero window probe timer if required instead; this is is hinted at within RFC 1122 Section 4.2.2.17.
+				if transmission_control_block.all_transmissions_have_been_acknowledged()
 				{
-					Some(timestamps_option) => transmission_control_block.adjust_retransmission_time_out_based_on_timestamps(self.now, timestamps_option),
-					
-					None => transmission_control_block.adjust_retransmission_time_out_based_on_acknowledgments(self.now, most_recent_segment_timestamp),
+					if transmission_control_block.send_window_is_zero()
+					{
+						transmission_control_block.reschedule_retransmission_and_zero_window_probe_alarm();
+					}
+					else
+					{
+						transmission_control_block.cancel_retransmission_and_zero_window_probe_alarm();
+					}
 				}
+				// do we do an immediate re-transmit here for all packets in the retransmit queue whose timestamp exceeds the RTO before starting the timer?
+				
+				// TODO: ONE OPTION
+				//	- keep the retransmit timer running all the time. This will produce spurious wake ups, but they could then be used for other events (eg user time out).
+				// TODO: Double check a segment is never retransmitted too early, , i.e., less than
+				//   one RTO after the previous transmission of that segment.
 			}
+			
 			
 			if SND.WL1 < SEG.SEQ || (SND.WL1 == SEG.SEQ && SND.WL2 <= SEG.ACK)
 			{
@@ -711,27 +764,6 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 			// TODO: Following 2 kinds of acks should not affect dupack counting: 1) Old acks [test above should cover this] 2) Acks with SACK but without any new SACK information in them. These could result from any anomaly in the network like a switch duplicating packets or a possible DoS attack.
 			
 		}
-		
-		// actually, has now become zero...
-		if SND.WND.has_now_reached_zero()
-		{
-			// TODO consider scheduling a retransmission time-out zero-window probe alarm.
-			
-			//   The sending TCP must be prepared to accept from the user and send at
-			//  least one octet of new data even if the send window is zero.  The
-			//  sending TCP must regularly retransmit to the receiving TCP even when
-			//  the window is zero.
-			// Two minutes is recommended for the retransmission
-			//  interval when the window is zero.
-			
-			
-			
-			/*
-				Window probe packets do not contain any user data except for the sequence number, which is a byte (segment size is one).
-				The sequence number is equal to the next expected sequence number.
-			*/
-		}
-		
 	}
 	
 	/// Processing Incoming Segments 4.6: Check the URG bit.

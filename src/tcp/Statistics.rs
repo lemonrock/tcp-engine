@@ -3,7 +3,7 @@
 
 
 #[derive(Default, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
-struct Statistics
+pub(crate) struct Statistics
 {
 	pub(crate) ecn_ce: Cell<u64>,
 	pub(crate) ecn_ect0: Cell<u64>,

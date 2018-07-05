@@ -4,6 +4,7 @@
 
 use super::*;
 use self::alarms::*;
+use self::api::*;
 use self::authentication::*;
 use self::congestion_control::*;
 use self::segment::*;
@@ -11,12 +12,14 @@ use self::segments_sent_but_unacknowledged::*;
 use self::syn_cookies::*;
 
 
-/// Alarms.
-pub mod alarms;
+pub(crate) mod alarms;
 
 
-/// TCP segment authentication, eg using MD5.
-pub mod authentication;
+/// API.
+pub mod api;
+
+
+pub(crate) mod authentication;
 
 
 pub(crate) mod congestion_control;
@@ -50,7 +53,6 @@ include!("WrappingSequenceNumber.adjust_comparison_for_wrap_around.rs");
 
 
 include!("InitialWindowSize.rs");
-include!("Interface.rs");
 include!("ParsedTcpSegment.rs");
 include!("ParsedSynCookie.rs");
 include!("ParsedTcpSegment.rs");
@@ -59,10 +61,6 @@ include!("Statistics.rs");
 include!("State.rs");
 include!("Timestamping.rs");
 include!("TransmissionControlBlock.rs");
-include!("TransmissionControlBlockAbstractions.rs");
-include!("TransmissionControlBlockEventsReceiver.rs");
-include!("TransmissionControlBlockEventsReceiverCreator.rs");
-include!("TransmissionControlBlockKey.rs");
 include!("TransmissionControlBlockMaxima.rs");
 include!("TransmissionControlBlockMaximaSend.rs");
 include!("TransmissionControlBlockReceive.rs");

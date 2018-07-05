@@ -10,11 +10,9 @@ pub(crate) struct SegmentSentButUnacknowledged<TCBA: TransmissionControlBlockAbs
 	tcp_segment: NonNull<TcpSegment<TCBA>>,
 	
 	/// RFC 793, Glossary, Page 83: "The amount of sequence number space occupied by a segment, including any controls which occupy sequence space".
-	segment_length: usize,
+	LEN: usize,
 	
 	timestamp: MonotonicMillisecondTimestamp,
-
-	retransmissions: u8,
 }
 
 impl<TCBA: TransmissionControlBlockAbstractions> Drop for SegmentSentButUnacknowledged<TCBA>
@@ -22,41 +20,30 @@ impl<TCBA: TransmissionControlBlockAbstractions> Drop for SegmentSentButUnacknow
 	#[inline(always)]
 	fn drop(&mut self)
 	{
-		self.packet.free_packet()
+		self.packet.decrement_reference_count()
 	}
 }
 
 impl<TCBA: TransmissionControlBlockAbstractions> SegmentSentButUnacknowledged<TCBA>
 {
 	#[inline(always)]
-	fn new(packet: TCBA::Packet, tcp_segment: NonNull<TcpSegment<TCBA>>, segment_length: usize, now: MonotonicMillisecondTimestamp) -> Self
+	fn new(packet: TCBA::Packet, our_tcp_segment: &mut TcpSegment<TCBA>, payload_size: usize, now: MonotonicMillisecondTimestamp) -> Self
 	{
+		packet.increment_reference_count();
+		
 		Self
 		{
 			packet,
-			tcp_segment,
-			segment_length,
+			tcp_segment: unsafe { NonNull::new_unchecked(our_tcp_segment as *mut Self) },
+			LEN: our_tcp_segment.LEN(payload_size),
 			timestamp: now,
-			retransmissions: 0,
 		}
-	}
-	
-	#[inline(always)]
-	fn SEQ(&self) -> WrappingSequenceNumber
-	{
-		self.tcp_segment.SEQ()
-	}
-	
-	#[inline(always)]
-	fn segment_length(&self) -> usize
-	{
-		self.segment_length
 	}
 	
 	#[inline(always)]
 	fn end_sequence_number(&self) -> WrappingSequenceNumber
 	{
-		self.SEQ() + self.payload_length()
+		self.tcp_segment.SEQ() + self.LEN
 	}
 	
 	#[inline(always)]
@@ -66,27 +53,12 @@ impl<TCBA: TransmissionControlBlockAbstractions> SegmentSentButUnacknowledged<TC
 	}
 	
 	#[inline(always)]
-	fn increment_retransmissions_and_fail_if_maximum_reached(&mut self) -> bool
-	{
-		const MaximumRetransmissions: u8 = 8;
-		
-		self.retransmissions += 1;
-		self.retransmissions == MaximumRetransmissions
-	}
-	
-	#[inline(always)]
-	fn clear_explicit_congestion_notifications_when_retransmitting(&mut self)
+	pub(crate) fn clear_explicit_congestion_notifications_when_retransmitting(&mut self)
 	{
 		let tcp_segment = unsafe { self.tcp_segment.as_mut() };
 		tcp_segment.clear_congestion_window_reduced_flag();
 		
 		// RFC 3168 Section 6.1.5 Paragraph 1: "... TCP implementations MUST NOT set either ECT codepoint (ECT(0) or ECT(1)) in the IP header for retransmitted data packets".
 		self.packet.set_explicit_congestion_notification_state_off();
-	}
-	
-	#[inline(always)]
-	fn is_second_or_more_successive_time_out(&self) -> bool
-	{
-		self.retransmissions > 1
 	}
 }

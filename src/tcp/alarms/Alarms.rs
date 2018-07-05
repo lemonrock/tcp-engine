@@ -3,11 +3,13 @@
 
 
 #[derive(Debug)]
-struct Alarms<TCBA: TransmissionControlBlockAbstractions>
+pub(crate) struct Alarms<TCBA: TransmissionControlBlockAbstractions>
 {
-	retransmission_time_out_alarm_wheel: AlarmWheel<RetransmissionTimeOutAlarmBehaviour, TCBA>,
+	retransmission_and_zero_window_probe_alarm_wheel: AlarmWheel<RetransmissionAndZeroWindowProbeAlarmBehaviour, TCBA>,
 	
 	keep_alive_alarm_wheel: AlarmWheel<KeepAliveAlarmBehaviour, TCBA>,
+	
+	user_time_out_alarm_wheel: AlarmWheel<UserTimeOutAlarmBehaviour, TCBA>,
 	
 	/// After how long a period are keep-alive probes invoked to verify that an idle connection is still alive.
 	///
@@ -49,11 +51,6 @@ struct Alarms<TCBA: TransmissionControlBlockAbstractions>
 	///
 	/// Defaults to five (5).
 	pub(crate) inclusive_maximum_number_of_keep_alive_probes: u8,
-	
-	user_time_out_alarm_wheel: AlarmWheel<UserTimeOutAlarmBehaviour, TCBA>,
-	
-	/// Defaults to three (3) seconds.
-	pub(crate) XXX_user_time_out: TickDuration,
 }
 
 impl<TCBA: TransmissionControlBlockAbstractions> Alarms<TCBA>
@@ -72,15 +69,13 @@ impl<TCBA: TransmissionControlBlockAbstractions> Alarms<TCBA>
 		
 		Self
 		{
-			retransmission_time_out_alarm_wheel: AlarmWheel::new(now),
-			
 			keep_alive_alarm_wheel: AlarmWheel::new(now),
+			retransmission_and_zero_window_probe_alarm_wheel: AlarmWheel::new(now),
+			user_time_out_alarm_wheel: AlarmWheel::new(now),
+			
 			keep_alive_time,
 			keep_alive_interval,
 			inclusive_maximum_number_of_keep_alive_probes,
-			
-			user_time_out_alarm_wheel: AlarmWheel::new(now),
-			XXX_user_time_out: TickDuration::milliseconds_to_ticks_rounded_up(MillisecondDuration::ThreeSeconds),
 		}
 	}
 	
@@ -89,26 +84,25 @@ impl<TCBA: TransmissionControlBlockAbstractions> Alarms<TCBA>
 	pub(crate) fn progress(&self, interface: &Interface<TCBA>) -> MonotonicMillisecondTimestamp
 	{
 		let now = Tick::now();
-		self.retransmission_time_out_alarm_wheel.progress(now, interface);
 		self.keep_alive_alarm_wheel.progress(now, interface);
+		self.retransmission_and_zero_window_probe_alarm_wheel.progress(now, interface);
 		self.user_time_out_alarm_wheel.progress(now, interface);
 		now
 	}
-	
 	#[inline(always)]
-	pub(crate) fn retransmission_time_out_alarm_wheel(&self) -> &AlarmWheel<RetransmissionTimeOutAlarmBehaviour, TCBA>
-	{
-		&self.retransmission_time_out_alarm_wheel
-	}
-	
-	#[inline(always)]
-	pub(crate) fn keep_alive_alarm_wheel(&self) -> &AlarmWheel<RetransmissionTimeOutAlarmBehaviour, TCBA>
+	pub(crate) fn keep_alive_alarm_wheel(&self) -> &AlarmWheel<KeepAliveAlarmBehaviour, TCBA>
 	{
 		&self.keep_alive_alarm_wheel
 	}
 	
 	#[inline(always)]
-	pub(crate) fn user_time_out_alarm_wheel(&self) -> &AlarmWheel<RetransmissionTimeOutAlarmBehaviour, TCBA>
+	pub(crate) fn retransmission_and_zero_window_probe_alarm_wheel(&self) -> &AlarmWheel<RetransmissionAndZeroWindowProbeAlarmBehaviour, TCBA>
+	{
+		&self.retransmission_and_zero_window_probe_alarm_wheel
+	}
+	
+	#[inline(always)]
+	pub(crate) fn user_time_out_alarm_wheel(&self) -> &AlarmWheel<UserTimeOutAlarmBehaviour, TCBA>
 	{
 		&self.user_time_out_alarm_wheel
 	}

@@ -5,7 +5,6 @@
 #[derive(Debug)]
 pub(crate) struct SegmentsSentButUnacknowledged<TCBA: TransmissionControlBlockAbstractions>
 {
-	combined_payload_size: usize,
 	queue: BTreeMap<WrappingSequenceNumber, SegmentSentButUnacknowledged<TCBA>>,
 }
 
@@ -16,15 +15,10 @@ impl<TCBA: TransmissionControlBlockAbstractions> Default for SegmentsSentButUnac
 	{
 		Self
 		{
-			combined_payload_size: 0,
 			queue: BTreeMap::new(),
 		}
 	}
 }
-
-const MaximumQueueDepth: usize = 16;
-
-const MaximumCombinedPayloadSize: usize = 16 * 1_024;
 
 impl<TCBA: TransmissionControlBlockAbstractions> SegmentsSentButUnacknowledged<TCBA>
 {
@@ -41,10 +35,43 @@ impl<TCBA: TransmissionControlBlockAbstractions> SegmentsSentButUnacknowledged<T
 	}
 	
 	#[inline(always)]
-	pub(crate) fn remove(&mut self, sequence_number: WrappingSequenceNumber)
+	pub(crate) fn append(&mut self, packet: TCBA::Packet, our_tcp_segment: &mut TcpSegment<TCBA>, payload_size: usize, now: MonotonicMillisecondTimestamp)
 	{
-		self.queue.remove(&sequence_number);
+		let old = self.queue.insert(our_tcp_segment.SEQ(), SegmentSentButUnacknowledged::new(packet, our_tcp_segment, payload_size, now));
+		debug_assert!(old.is_none(), "Overwrote an existing segment sent but unacknowledged");
 	}
+	
+	#[inline(always)]
+	pub(crate) fn segment_to_retransmit(&mut self) -> &mut SegmentSentButUnacknowledged<TCBA>
+	{
+		self.queue.values_mut().next().expect("When this method is used from the retransmission time out alarm, it is assumed there are unacknowledged segments")
+	}
+	
+	// TODO: In-order vs not-in-order
+	// TODO: partial ack (eg only acks SOME of the payload of a segment).
+		// We could re-packetize; messy, potentially involves a memmove.
+		// We could use multi-packet mbufs (a mbuf chain), with headers separate to data.
+	
+	// TODO: With received payload data, we need to place into a read queue if it is not yet appropriate.
+	
+	// TODO: What is the timestamp on a re-transmitted packet?
+	
+	
+	// TODO: Combine multiple ACKs.
+	// TODO: Send data on an ACK - call the event receiver, tell them the size of segment length we have - allow them to write some data to it.
+	// TODO: Only for TCP Fast Open if this is the third part of a three-way handshake.
+	// TODO: Create SACKs.
+	// See RFC 2018 but also has 1 errata https://www.rfc-editor.org/errata_search.php?rfc=2018
+	// TODO: Delayed ACKs (maximum delay is 0.5 seconds, maximum number of acks delayed is 2).
+	
+	// Partial acks are quite possible if we use DPDK's GSO (generic segmentation offload [in software]) or hardware TSO.
+	
+	#[inline(always)]
+	pub(crate) fn remove_first_segment_sent_but_unacknowledged(&mut self, up_to_sequence_number: WrappingSequenceNumber) -> MonotonicMillisecondTimestamp
+	{
+	
+	}
+	
 	
 	#[inline(always)]
 	pub(crate) fn remove_all_from_first_up_to(&mut self, up_to_sequence_number: WrappingSequenceNumber) -> Option<MonotonicMillisecondTimestamp>
@@ -71,93 +98,9 @@ impl<TCBA: TransmissionControlBlockAbstractions> SegmentsSentButUnacknowledged<T
 		
 		for sequence_number in to_remove
 		{
-			self.remove(sequence_number)
+			self.queue.remove(sequence_number)
 		}
 		
 		acknowledgment_timestamp
-	}
-	
-	#[inline(always)]
-	pub(crate) fn remove_all(&mut self)
-	{
-		self.queue.clear()
-	}
-	
-	#[inline(always)]
-	pub(crate) fn next_unacknowledged_segment(&mut self) -> &mut SegmentSentButUnacknowledged<TCBA>
-	{
-		self.queue.values_mut().next().expect("When this method is used from the Retransmission time out alarm, it is assumed there are unacknowledged segments")
-	}
-	
-	#[inline(always)]
-	pub(crate) fn first(&self) -> Option<&S>
-	{
-		self.queue.values().next()
-	}
-	
-	#[inline(always)]
-	pub(crate) fn get(&self, sequence_number: WrappingSequenceNumber) -> Option<&S>
-	{
-		self.queue.get(&sequence_number)
-	}
-	
-	#[inline(always)]
-	pub(crate) fn next(&self, current: Option<&S>) -> Option<&S>
-	{
-		if let Some(segment) = current
-		{
-			self.next_fast(segment.end_sequence_number())
-		}
-		else
-		{
-			None
-		}
-	}
-	
-	#[inline(always)]
-	fn next_fast(&self, current_end_sequence_number: WrappingSequenceNumber) -> Option<&S>
-	{
-		self.get(current_end_sequence_number)
-	}
-	
-	#[inline(always)]
-	pub(crate) fn append(&mut self, segment: S) -> Result<(), &'static str>
-	{
-		let segment_length = segment.segment_length();
-		
-		if segment_length == 0
-		{
-			return Err("payload length should not be zero")
-		}
-		
-		if self.queue.len() == MaximumQueueDepth
-		{
-			return Err("maximum queue depth reached")
-		}
-		
-		
-		if self.queue.insert(segment.SEQ(), segment).is_none()
-		{
-			Ok(())
-		}
-		else
-		{
-			Err("would have replaced an existing entry")
-		}
-		
-		#[derive(Debug)]
-		pub(crate) struct SegmentSentButUnacknowledged<TCBA: TransmissionControlBlockAbstractions>
-		{
-			packet: TCBA::Packet,
-			
-			tcp_segment: NonNull<TcpSegment<TCBA>>,
-			
-			/// RFC 793, Glossary, Page 83: "The amount of sequence number space occupied by a segment, including any controls which occupy sequence space".
-			segment_length: usize,
-			
-			timestamp: MonotonicMillisecondTimestamp,
-			
-			retransmissions: u8,
-		}
 	}
 }

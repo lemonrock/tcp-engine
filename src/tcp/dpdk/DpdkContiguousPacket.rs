@@ -19,7 +19,7 @@ impl ContiguousPacket for DpdkContiguousPacket
 	}
 	
 	#[inline(always)]
-	fn free_packet(self)
+	fn decrement_reference_count(self)
 	{
 		// Decrement the rte_mbuf refcnt; if it is 1 then call `PacketBufferExt.free_direct_contiguous_packet()`.
 		

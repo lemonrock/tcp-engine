@@ -34,11 +34,9 @@ impl Default for ExplicitCongestionNotification
 impl ExplicitCongestionNotification
 {
 	#[inline(always)]
-	pub fn is_ect_set(self) -> bool
+	pub fn is_ect_or_congestion_experienced_set(self) -> bool
 	{
-		use self::ExplicitCongestionNotification::*;
-		
-		self == CapableTransportEctZero || self == CapableTransportEctOne
+		self != ExplicitCongestionNotification::NotCapableTransport
 	}
 	
 	#[inline(always)]

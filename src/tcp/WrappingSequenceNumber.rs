@@ -4,7 +4,7 @@
 
 /// A native-endian wrapping sequence number (ie one that starts again from zero once the maximum is exceeded).
 #[derive(Default, Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub struct WrappingSequenceNumber(u32);
+pub(crate) struct WrappingSequenceNumber(u32);
 
 impl PartialOrd for WrappingSequenceNumber
 {
@@ -164,6 +164,12 @@ impl WrappingSequenceNumber
 	pub(crate) const fn new(value: u32) -> Self
 	{
 		WrappingSequenceNumber(value)
+	}
+	
+	#[inline(always)]
+	pub(crate) fn is_zero(self) -> bool
+	{
+		self.0 == Self::Zero.0
 	}
 	
 	#[inline(always)]

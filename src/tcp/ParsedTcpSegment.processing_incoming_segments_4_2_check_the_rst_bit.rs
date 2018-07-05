@@ -21,7 +21,7 @@ macro_rules! processing_incoming_segments_4_2_check_the_rst_bit
 			
 			if segment_sequence_number_exactly_matches_next_expected_sequence_number
 			{
-				transmission_control_block.forcibly_close(self.interface);
+				transmission_control_block.aborted(self.interface, $self.now);
 				return
 			}
 			else
@@ -51,7 +51,7 @@ macro_rules! processing_incoming_segments_4_2_check_the_rst_bit_established_fin_
 {
 	($self: ident, $transmission_control_block: expr) =>
 	{
-		processing_incoming_segments_4_2_check_the_rst_bit!($self, $transmission_control_block, TransmissionControlBlock::connection_reset_established_fin_wait_1_fin_wait_2_close_wait)
+		processing_incoming_segments_4_2_check_the_rst_bit!($self, $transmission_control_block, TransmissionControlBlock::aborted)
 	}
 }
 
@@ -60,6 +60,6 @@ macro_rules! processing_incoming_segments_4_2_check_the_rst_bit_closing_last_ack
 {
 	($self: ident, $transmission_control_block: expr) =>
 	{
-		processing_incoming_segments_4_2_check_the_rst_bit!($self, $transmission_control_block, TransmissionControlBlock::connection_reset_closing_last_acknowledgment_time_wait)
+		processing_incoming_segments_4_2_check_the_rst_bit!($self, $transmission_control_block, TransmissionControlBlock::aborted)
 	}
 }

@@ -60,6 +60,17 @@ impl Into<TickDuration> for MillisecondDuration
 	}
 }
 
+impl Add for MillisecondDuration
+{
+	type Output = Self;
+	
+	#[inline(always)]
+	fn sub(self, rhs: Self) -> Self::Output
+	{
+		self.0 + rhs.0
+	}
+}
+
 impl Sub for MillisecondDuration
 {
 	type Output = Self;
@@ -112,6 +123,9 @@ impl MillisecondDuration
 	
 	/// 3 seconds.
 	pub const ThreeSeconds: Self = Self::from_seconds(3);
+	
+	/// 5 seconds.
+	pub const FiveSeconds: Self = Self::from_seconds(5);
 	
 	/// Ten seconds.
 	pub const TenSeconds: Self = Self::from_seconds(10);

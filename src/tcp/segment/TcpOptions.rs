@@ -49,6 +49,12 @@ impl TcpOptions
 	}
 	
 	#[inline(always)]
+	fn does_not_have_timestamps(&self) -> bool
+	{
+		self.timestamps.is_none()
+	}
+	
+	#[inline(always)]
 	fn has_user_time_out(&self) -> bool
 	{
 		self.user_time_out.is_some()

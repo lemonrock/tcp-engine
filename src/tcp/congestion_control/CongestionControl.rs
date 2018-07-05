@@ -196,7 +196,7 @@ impl CongestionControl
 		}
 	}
 	
-	/// RFC 5681 Section 3.1 Page 8 Paragraph 2: "Furthermore, upon a timeout (as specified in (RFC298)]) cwnd MUST be set to no more than the loss window, LW, which equals 1 full-sized segment (regardless of the value of IW).
+	/// RFC 5681 Section 3.1 Page 8 Paragraph 2: "Furthermore, upon a timeout cwnd MUST be set to no more than the loss window, LW, which equals 1 full-sized segment (regardless of the value of IW).
 	/// Therefore, after retransmitting the dropped segment the TCP sender uses the slow start algorithm to increase the window from 1 full-sized segment to the new value of ssthresh, at which point congestion avoidance again takes over".
 	pub(crate) fn reset_congestion_window_to_loss_window_because_retransmission_timed_out(&mut self, explicit_congestion_notification_state: Option<&mut ExplicitCongestionNotificationState>)
 	{
@@ -215,7 +215,9 @@ impl CongestionControl
 		let mut options_size = if timestamps_in_use
 		{
 			TimestampsOption::KnownLength
-		} else {
+		}
+		else
+		{
 			0
 		};
 		

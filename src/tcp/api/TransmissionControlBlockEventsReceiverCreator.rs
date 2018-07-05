@@ -2,14 +2,13 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
-macro_rules! drop
+/// Creates users of a transmission control block.
+pub trait TransmissionControlBlockEventsReceiverCreator
 {
-	($packet: ident, $explanation: expr) =>
-	{
-		{
-			$packet.dropped_packet_explanation($explanation);
-			$packet.decrement_reference_count();
-			return
-		}
-	}
+	/// The type of api receiver created (typically an enumeration or a wrapper around function pointers).
+	type EventsReceiver: TransmissionControlBlockEventsReceiver;
+	
+	#[inline(always)]
+	fn create<Address: InternetProtocolAddress>(key: &TransmissionControlBlockKey<Address>) -> Self::EventsReceiver;
 }
+

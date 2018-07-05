@@ -38,7 +38,14 @@ siphasher = "^0.2"
 time = "^0.1"
 
 [features]
-default = ["rfc-4821-minimum-ipv4-path-mtu", "increase-ipv4-mss-acceptable-minimum-to-1024", "increase-ipv6-mss-acceptable-minimum-to-1220", "drop-urgent-pointer-field-non-zero", "drop-options-padding-non-zero", "drop-options-known-fixed-length-invalid", "server-drop-source-port-0"]
+default = ["rfc-8311-permit-explicit-congenstion-markers-on-all-packets", "rfc-4821-minimum-ipv4-path-mtu", "increase-ipv4-mss-acceptable-minimum-to-1024", "increase-ipv6-mss-acceptable-minimum-to-1220", "drop-urgent-pointer-field-non-zero", "drop-options-padding-non-zero", "drop-options-known-fixed-length-invalid", "server-drop-source-port-0"]
+
+# Disables checks that drop packets if they have Explicit Congestion Notification codepoints ECT(0) or ECT(1) or the Congestion Experienced (CE) flag set in violation of RFC 3168.
+#
+# Enabled by default.
+#
+# Also implies passive support for RFC 5562.
+rfc-8311-permit-explicit-congenstion-markers-on-all-packets = []
 
 # Increases the default Internet Protocol Version 4 Path Maximum Transmission Unit (PathMTU or just MTU) size from 576 bytes to 1024 bytes as recommended in RFC 4821 Section 7.2 Paragraph 2.
 #
@@ -53,16 +60,20 @@ rfc-4821-minimum-ipv4-path-mtu = []
 #
 # Enabled by default.
 #
-# When enabled, this option will break any TCP stacks that strictly enforce a MSS limit of 536 when negotiating MSS without specifying the MSS option. This is believed to very rare in modern practice.
+# When enabled, this option will break any TCP stacks that strictly enforce a MSS limit of 536 when negotiating MSS without specifying the MSS option.
+# This is believed to very rare in modern practice.
 #
 # This change is undertaken because it prevents a potential DoS attacks involving small segments.
-increase-ip4-mss-acceptable-minimum-to-1024 = []
+#
+# Also implies supporting RFC 6691.
+increase-ipv4-mss-acceptable-minimum-to-1024 = []
 
 # Forces the minimum acceptable Internet Protocol Version 6 TCP Maximum Segment Size (MSS) option to be 1,220 bytes, and forces the default for MSS when the option is not supplied in the TCP `SYN` or `SYNACK` segments to be a protocol-invalid value of 1,220 rather than 536.
 #
 # Enabled by default.
 #
-# When enabled, this option will break any TCP stacks that strictly enforce a MSS limit of 536 when negotiating MSS without specifying the MSS option. This is believed to very rare in modern practice.
+# When enabled, this option will break any TCP stacks that strictly enforce a MSS limit of 536 when negotiating MSS without specifying the MSS option.
+# This is believed to very rare in modern practice.
 #
 # This change is undertaken because it prevents a potential DoS attacks involving small segments. There is no good reason for a counter-party to negotiate anything less than the minimum of 1220 or assume a default of 536 when using Internet Protocol Version 6. In practice, this is unlikely to break anything other than experimental or attacker TCP stacks.
 increase-ipv6-mss-acceptable-minimum-to-1220 = []

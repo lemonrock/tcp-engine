@@ -20,8 +20,8 @@ pub(crate) struct TransmissionControlBlock<TCBA: TransmissionControlBlockAbstrac
 	
 	events_receiver: <<TCBA as TransmissionControlBlockAbstractions>::EventsReceiverCreator as TransmissionControlBlockEventsReceiverCreator>::EventsReceiver,
 	
-	retransmission_time_out_alarm: Alarm<RetransmissionTimeOutAlarmBehaviour<TCBA>, TCBA>,
 	keep_alive_alarm: Alarm<KeepAliveAlarmBehaviour<TCBA>, TCBA>,
+	retransmission_and_zero_window_probe_alarm: Alarm<RetransmissionAndZeroWindowProbeAlarmBehaviour<TCBA>, TCBA>,
 	user_time_out_alarm: Alarm<UserTimeOutAlarmBehaviour<TCBA>, TCBA>,
 	
 	timestamping: Option<Timestamping>,
@@ -107,8 +107,8 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 			
 			segments_sent_but_unacknowledged: SegmentsSentButUnacknowledged::default(),
 			
-			retransmission_time_out_alarm: RetransmissionTimeOutAlarmBehaviour::new(&cached_congestion_data),
 			keep_alive_alarm: Default::default(),
+			retransmission_and_zero_window_probe_alarm: Alarm::new(RetransmissionAndZeroWindowProbeAlarmBehaviour::new(&cached_congestion_data, true)),
 			user_time_out_alarm: Default::default(),
 			
 			timestamping: Timestamping::new_for_client_opener(RCV_NXT),
@@ -213,8 +213,8 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 			
 			segments_sent_but_unacknowledged: SegmentsSentButUnacknowledged::default(),
 			
-			retransmission_time_out_alarm: RetransmissionTimeOutAlarmBehaviour::new(&cached_congestion_data),
 			keep_alive_alarm: Default::default(),
+			retransmission_and_zero_window_probe_alarm: Alarm::new(RetransmissionAndZeroWindowProbeAlarmBehaviour::new(&cached_congestion_data, false)),
 			user_time_out_alarm: Default::default(),
 			
 			timestamping,
@@ -323,7 +323,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 			
 			Listen => unreachable_synthetic_state!("TCP state Listen is replaced with SYN flood defences"),
 			
-			SynchronizeSent => self.close(interface, now),
+			SynchronizeSent => self.closed(interface, now),
 			
 			SynchronizeReceived => unreachable_synthetic_state!("TCP state SynchronizeReceived is replaced with SYN flood defences"),
 			
@@ -390,90 +390,45 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 			
 			Listen => unreachable_synthetic_state!("TCP state Listen is replaced with SYN flood defences"),
 			
-			SynchronizeSent => self.forcibly_close(interface),
+			SynchronizeSent => self.aborted(interface, now),
 			
 			SynchronizeReceived => unreachable_synthetic_state!("TCP state SynchronizeReceived is replaced with SYN flood defences 'process_for_acknowledgment_of_syncookie'"),
 			
 			Established | FinishWait1 | FinishWait2 | CloseWait =>
 			{
 				interface.send_reset_without_packet_to_reuse(self, now, transmission_control_block.SND.NXT);
-				self.forcibly_close(interface)
+				self.aborted(interface, now)
 			}
 			
-			Closing | LastAcknowledgment => self.forcibly_close(interface),
+			Closing | LastAcknowledgment => self.aborted(interface, now),
 			
-			TimeWait => self.close(interface, now.to_milliseconds()),
+			TimeWait => self.closed(interface, now.to_milliseconds()),
 		}
 		
 		None
 	}
 	
 	#[inline(always)]
-	fn cancel_alarms(&mut self, interface: &Interface<TCBA>)
+	fn closed(&mut self, interface: &Interface<TCBA>, now: MonotonicMillisecondTimestamp)
 	{
-		let alarms = interface.alarms();
-		self.retransmission_time_out_alarm.cancel(alarms);
+		self.events_receiver.closed();
+		interface.destroy_transmission_control_block(&self.key)
+	}
+	
+	#[inline(always)]
+	pub(crate) fn aborted(&mut self, interface: &Interface<TCBA>, now: MonotonicMillisecondTimestamp)
+	{
+		self.events_receiver.aborted();
+		interface.destroy_transmission_control_block(&self.key)
+	}
+	
+	#[inline(always)]
+	pub(crate) fn destroying(self, interface: &Alarms<TCBA>)
+	{
 		self.keep_alive_alarm.cancel(alarms);
+		self.retransmission_and_zero_window_probe_alarm.cancel(alarms);
 		self.user_time_out_alarm.cancel(alarms);
-	}
-	
-	#[inline(always)]
-	pub(crate) fn close(&mut self, interface: &Interface<TCBA>, now: MonotonicMillisecondTimestamp)
-	{
-		self.events_receiver.finish();
-		//self.set_state(State::Closed);
-		self.cancel_alarms(interface);
-		self.segments_sent_but_unacknowledged.remove_all();
-		
-		interface.update_recent_congestion_data(self, now);
-		
-		interface.remove_transmission_control_block(&self.key)
-	}
-	
-	#[inline(always)]
-	pub(crate) fn forcibly_close(&mut self, interface: &Interface<TCBA>)
-	{
-		self.events_receiver.finish_forcibly_closed(self.is_state_established());
-		//self.set_state(State::Closed);
-		self.cancel_alarms(interface);
-		self.segments_sent_but_unacknowledged.remove_all();
-		
-		interface.remove_transmission_control_block(&self.key)
-	}
-	
-	#[inline(always)]
-	pub(crate) fn error_connection_reset(&mut self, interface: &Interface<TCBA>)
-	{
-		self.events_receiver.finish_forcibly_closed(false);
-		//self.set_state(State::Closed);
-		self.cancel_alarms(interface);
-		self.segments_sent_but_unacknowledged.remove_all();
-		
-		interface.remove_transmission_control_block(&self.key)
-	}
-	
-	#[inline(always)]
-	pub(crate) fn connection_reset_established_fin_wait_1_fin_wait_2_close_wait(&mut self, interface: &Interface<TCBA>)
-	{
-		// See Processing Incoming Segments 4.2.2.1
-		self.events_receiver.finish_forcibly_closed(true);
-		//self.set_state(State::Closed);
-		self.cancel_alarms(interface);
-		self.segments_sent_but_unacknowledged.remove_all();
-		
-		interface.remove_transmission_control_block(&self.key)
-	}
-	
-	#[inline(always)]
-	pub(crate) fn connection_reset_closing_last_acknowledgment_time_wait(&mut self, interface: &Interface<TCBA>)
-	{
-		// See Processing Incoming Segments 4.2.2.1
-		self.events_receiver.finish_forcibly_closed(true);
-		//self.set_state(State::Closed);
-		self.cancel_alarms(interface);
-		self.segments_sent_but_unacknowledged.remove_all();
-		
-		interface.remove_transmission_control_block(&self.key)
+		self.zero_window_probe_alarm.cancel(alarms);
 	}
 }
 
@@ -512,7 +467,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	}
 	
 	#[inline(always)]
-	pub(crate) fn recalculate_sender_maximum_segment_size_when_entering_established_state(&mut self)
+	fn recalculate_sender_maximum_segment_size_when_entering_established_state(&mut self)
 	{
 		self.congestion_control.recalculate_sender_maximum_segment_size_when_entering_established_state(self.maximum_segment_size_to_send_to_remote, self.timestamping.is_some(), self.md5_authentication_key.is_some(), self.selective_acknowledgments_permitted)
 	}
@@ -620,55 +575,184 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	}
 }
 
-/// Retransmission.
-impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
+macro_rules! increment_retransmissions_or_zero_window_probes
 {
-	#[inline(always)]
-	pub(crate) fn schedule_retransmission_time_out_alarm(&mut self, alarms: &Alarms<TCBA>)
+	($self: ident, $interface: ident, $now: ident) =>
 	{
-		self.retransmission_time_out_alarm.schedule(alarms, self.retransmission_time_out());
-	}
-	
-	#[inline(always)]
-	pub(crate) fn remove_all_sent_segments_up_to(&mut self, up_to_sequence_number: WrappingSequenceNumber) -> Option<MonotonicMillisecondTimestamp>
-	{
-		self.segments_sent_but_unacknowledged.remove_all_from_first_up_to(up_to_sequence_number)
-	}
-	
-	// RFC 7323, Section 4.1: "The difference between a received TSecr value and the current timestamp clock value provides an RTT measurement".
-	#[inline(always)]
-	pub(crate) fn adjust_retransmission_time_out_based_on_timestamps(&mut self, now: MonotonicMillisecondTimestamp, timestamps_option: TimestampOption)
-	{
-		let measurement_of_round_trip_time = self.timestamping_mutable_reference().unwrap().measurement_of_round_trip_time(now, timestamps_option.TSecr);
-		
-		if let Some(measurement_of_round_trip_time) = measurement_of_round_trip_time
 		{
-			self.retransmission_time_out_alarm_behaviour_mutable_reference().process_measurement_of_round_trip_time(measurement_of_round_trip_time)
+			match $self.increment_retransmissions()
+			{
+				None =>
+				{
+					$self.aborted($interface, $now.to_milliseconds());
+					return None
+				}
+				
+				Some(number_of_transmissions) => number_of_transmissions,
+			}
 		}
 	}
+}
+
+/// Retransmission and Zero-Window Probing.
+impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
+{
+	// TODO: Cancel the timer on window update.
+	// TODO: Cancel the timer if full
+	// TODO: Or just let it expire and self-cancel.
+	#[inline(always)]
+	pub(crate) fn reschedule_retransmission_and_zero_window_probe_alarm(&self, interface: &Interface<TCBA>)
+	{
+		// Turn off if window is not zero and their is nothing in the retransmission queue.
+		// Otherwise, keep it on or reschedule it.
+		// Be aware that we need to reset number_of_retransmissions when turning on for first time for a new segment or for a new zero window probe, which affects back=off calculation
+		
+		// TODO: reset number_of_retransmissions
+		
+		XXXXXX;
+	}
 	
 	#[inline(always)]
-	pub(crate) fn adjust_retransmission_time_out_based_on_acknowledgments(&mut self, now: MonotonicMillisecondTimestamp, timestamp: MonotonicMillisecondTimestamp)
+	pub(crate) fn append_to_retransmission_queue(&mut self, packet: TCBA::Packet, our_tcp_segment: &mut TcpSegment<TCBA>, payload_size: usize, now: MonotonicMillisecondTimestamp)
 	{
-		self.retransmission_time_out_alarm_behaviour_mutable_reference().adjust_retransmission_time_out_based_on_acknowledgments(now, timestamp)
+		self.segments_sent_but_unacknowledged.append(packet, our_tcp_segment, payload_size, now)
+	}
+	
+	#[inline(always)]
+	pub(crate) fn remove_first_segment_sent_but_unacknowledged(&mut self, up_to_sequence_number: WrappingSequenceNumber) -> Option<MonotonicMillisecondTimestamp>
+	{
+		self.segments_sent_but_unacknowledged.remove_first_segment_sent_but_unacknowledged(up_to_sequence_number)
+	}
+	
+	// Processing Incoming Segments 4.5.2.2: "... compute a new estimate of round-trip time.
+	// If Snd.TS.OK bit is on, use Snd.TSclock - SEG.TSecr; otherwise, use the elapsed time since the first segment in the retransmission queue was sent".
+	#[inline(always)]
+	pub(crate) fn compute_a_new_estimate_of_round_trip_time_for_fully_acknowledged_segments(&mut self, now: MonotonicMillisecondTimestamp, fully_acknowledged_segment_timestamp: MonotonicMillisecondTimestamp, timestamps_option: Option<&TimestampsOption>)
+	{
+		if let Some(timestamping) = self.timestamping_reference()
+		{
+			// Missing a timestamps option (RFC 7323) is strictly only valid for Reset segments (eg ResetAcknowledgment).
+			// There is also as of writing a check that timestamps are always present, but it may be relaxed for some non-compliant TCP stacks.
+			if let Some(timestamps_option) = timestamps_option
+			{
+				// RFC 7323, Section 4.1: "The difference between a received TSecr value and the current timestamp clock value provides an RTT measurement".
+				if let Some(measurement_of_round_trip_time) = timestamping.measurement_of_round_trip_time(now, timestamps_option.TSecr)
+				{
+					self.retransmission_and_zero_window_probe_alarm_behaviour_mutable_reference().process_measurement_of_round_trip_time(measurement_of_round_trip_time);
+					return
+				}
+			}
+		}
+		
+		self.retransmission_and_zero_window_probe_alarm_behaviour_mutable_reference().adjust_retransmission_time_out_based_on_acknowledgments(now, fully_acknowledged_segment_timestamp)
+	}
+	
+	#[inline(always)]
+	pub(crate) fn all_transmissions_have_been_acknowledged(&self) -> bool
+	{
+		self.segments_sent_but_unacknowledged.is_empty()
+	}
+	
+	#[inline(always)]
+	pub(crate) fn send_window_is_zero(&self) -> bool
+	{
+		self.SND.WND.is_zero()
+	}
+	
+	#[inline(always)]
+	pub(crate) fn send_zero_window_probe(&mut self, interface: &Interface<TCBA>, now: Tick) -> Option<TickDuration>
+	{
+		debug_assert!(self.all_transmissions_have_been_acknowledged());
+		debug_assert!(self.send_window_is_zero());
+		
+		increment_retransmissions_or_zero_window_probes!(self, interface, now);
+		
+		if unlikely(interface.send_zero_window_probe(self, now).is_err())
+		{
+			self.aborted(interface, now);
+			return None
+		}
+		
+		self.next_retransmission_or_zero_probe_alarm()
+	}
+	
+	#[inline(always)]
+	pub(crate) fn send_retransmission(&mut self, interface: &Interface<TCBA>, now: Tick) -> Option<TickDuration>
+	{
+		let number_of_transmissions = increment_retransmissions_or_zero_window_probes!(self, interface, now);
+		
+		let segment_sent_but_unacknowledged = transmission_control_block.segment_to_retransmit();
+		
+		// Congestion Control and Explicit Congestion Notification.
+		{
+			transmission_control_block.reset_congestion_window_to_loss_window_because_retransmission_timed_out();
+			
+			let is_first_retransmission = number_of_transmissions == 1;
+			if is_first_retransmission
+			{
+				segment_sent_but_unacknowledged.clear_explicit_congestion_notifications_when_retransmitting();
+				
+				transmission_control_block.rfc_5681_section_7_paragaph_6_set_ssthresh_to_half_of_flight_size_on_first_retransmission();
+			}
+		}
+		
+		// RFC 6298 Section 5: "(5.4) Retransmit the earliest segment that has not been acknowledged by the TCP receiver".
+		// TODO: Retransmit unack'd packet - involves incrementing refcnt.
+		
+		// TODO: Do we need to reset the timestamp option?
+		
+		xxxx;
+		
+		self.next_retransmission_or_zero_probe_alarm()
+	}
+	
+	#[inline(always)]
+	pub(crate) fn smoothed_round_trip_time_and_round_trip_time_variance(&self) -> (MillisecondDuration, MillisecondDuration)
+	{
+		self.retransmission_and_zero_window_probe_alarm_behaviour_reference().smoothed_round_trip_time_and_round_trip_time_variance()
+	}
+	
+	#[inline(always)]
+	fn retransmission_time_out_entering_established_state(&mut self)
+	{
+		self.retransmission_and_zero_window_probe_alarm_behaviour_mutable_reference().entering_established_state()
+	}
+	
+	/// RFC 6298 Section 5: "(5.6) Start the retransmission timer, such that it expires after RTO seconds (for the value of RTO after the doubling operation outlined in 5.5)".
+	#[inline(always)]
+	fn next_retransmission_or_zero_probe_alarm(&self) -> Option<TickDuration>
+	{
+		Some(TickDuration::milliseconds_to_ticks_rounded_up(self.retransmission_time_out()))
+	}
+	
+	#[inline(always)]
+	fn increment_retransmissions(&mut self) -> Option<u8>
+	{
+		self.retransmission_and_zero_window_probe_alarm_behaviour_mutable_reference().increment_retransmissions()
 	}
 	
 	#[inline(always)]
 	fn retransmission_time_out(&self) -> MillisecondDuration
 	{
-		self.retransmission_time_out_alarm.retransmission_time_out.retransmission_time_out
+		self.retransmission_and_zero_window_probe_alarm_behaviour_reference().retransmission_time_out()
 	}
 	
 	#[inline(always)]
-	fn next_unacknowledged_segment(&mut self) -> &mut SegmentSentButUnacknowledged<TCBA>
+	fn segment_to_retransmit(&mut self) -> &mut SegmentSentButUnacknowledged<TCBA>
 	{
-		self.segments_sent_but_unacknowledged.next_unacknowledged_segment()
+		self.segments_sent_but_unacknowledged.segment_to_retransmit()
 	}
 	
 	#[inline(always)]
-	fn retransmission_time_out_alarm_behaviour_mutable_reference(&mut self)
+	fn retransmission_and_zero_window_probe_alarm_behaviour_reference(&self) -> &mut RetransmissionAndZeroWindowProbeAlarmBehaviour
 	{
-		self.retransmission_time_out_alarm.alarm_behaviour_mutable_reference()
+		self.retransmission_and_zero_window_probe_alarm.alarm_behaviour_reference()
+	}
+	
+	#[inline(always)]
+	fn retransmission_and_zero_window_probe_alarm_behaviour_mutable_reference(&mut self) -> &mut RetransmissionAndZeroWindowProbeAlarmBehaviour
+	{
+		self.retransmission_and_zero_window_probe_alarm.alarm_behaviour_mutable_reference()
 	}
 }
 
@@ -682,6 +766,8 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	#[inline(always)]
 	pub(crate) fn timestamps_are_required_in_all_segments_except_reset(&self) -> bool
 	{
+		debug_assert!(self.is_state_synchronized(), "This method is only valid once state is synchronized");
+		
 		self.timestamping.is_some()
 	}
 	
@@ -692,6 +778,14 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 		{
 			timestamping.unwrap().update_Last_ACK_sent(ACK);
 		}
+	}
+	
+	#[inline(always)]
+	pub(crate) fn normal_timestamps_option(&self) -> TimestampsOption
+	{
+		debug_assert_eq!(self.state, State::SynchronizeSent, "Only valid for SynchronizeSent");
+		
+		self.timestamping_reference_unwrapped().normal_timestamps_option()
 	}
 	
 	#[inline(always)]
@@ -707,9 +801,9 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	}
 	
 	#[inline(always)]
-	pub(crate) fn normal_timestamps_option(&self) -> TimestampsOption
+	fn timestamping_reference_unwrapped(&self) -> &Timestamping
 	{
-		self.timestamping_reference().normal_timestamps_option()
+		self.timestamping_reference().unwrap()
 	}
 }
 
@@ -757,7 +851,18 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	}
 	
 	#[inline(always)]
-	pub(crate) fn set_state(&self, state: State)
+	pub(crate) fn enter_state_established(&mut self)
+	{
+		self.retransmission_time_out_entering_established_state();
+		self.recalculate_sender_maximum_segment_size_when_entering_established_state();
+		self.set_state(State::Established);
+		self.events_receiver.entered_state_established();
+	}
+	
+	// set_state(State::Established)
+	// enter_state_established
+	#[inline(always)]
+	fn set_state(&mut self, state: State)
 	{
 		debug_assert!(state > self.state(), "new state '{:?}' does not advance from existing state '{:?}", state, self.state());
 		

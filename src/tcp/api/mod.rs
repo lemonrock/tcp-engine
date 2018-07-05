@@ -2,13 +2,13 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
-/// Represents an user of a TCP Socket
-pub trait TransmissionControlBlockEventsReceiverCreator
-{
-	/// The type of events receiver created (typically an enumeration or a wrapper around function pointers).
-	type EventsReceiver: TransmissionControlBlockEventsReceiver;
-	
-	#[inline(always)]
-	fn create<Address: InternetProtocolAddress>(key: &TransmissionControlBlockKey<Address>) -> Self::EventsReceiver;
-}
+use super::*;
 
+
+include!("AuthenticationPreSharedSecretKeys.rs");
+include!("HardwareTransmissionSegmentationOffloadLimits.rs");
+include!("Interface.rs");
+include!("TransmissionControlBlockAbstractions.rs");
+include!("TransmissionControlBlockEventsReceiver.rs");
+include!("TransmissionControlBlockEventsReceiverCreator.rs");
+include!("TransmissionControlBlockKey.rs");

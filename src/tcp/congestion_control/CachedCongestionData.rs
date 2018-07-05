@@ -5,7 +5,11 @@
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct CachedCongestionData
 {
-	retransmission_time_out: RetransmissionTimeOut,
+	/// `SRTT`.
+	smoothed_round_trip_time: MillisecondDuration,
+	
+	/// `RTTVAR`.
+	round_trip_time_variance: MillisecondDuration,
 	
 	// RFC 5681: Section 3.1: "... the slow start threshold (ssthresh), is used to determine whether the slow start or congestion avoidance algorithm is used to control data transmission ..."
 	ssthresh: u32,
@@ -24,25 +28,29 @@ impl CachedCongestionData
 {
 	const Default: Self = Self
 	{
-		retransmission_time_out: RetransmissionTimeOut::Default,
+		smoothed_round_trip_time: RetransmissionTimeOutData::InitialSmoothedRoundTripTime,
+		
+		round_trip_time_variance: RetransmissionTimeOutData::InitialRoundTripTimeVariance,
+		
 		// RFC 5681: Section 3.1: "The initial value of ssthresh SHOULD be set arbitrarily high (e.g., to the size of the largest possible advertised window)".
 		ssthresh: WindowSize::Maximum.0,
 	};
 	
 	#[inline(always)]
-	pub(crate) fn new(&self, retransmission_time_out: RetransmissionTimeOut, ssthresh: u32) -> RetransmissionTimeOut
+	pub(crate) fn new(&self, smoothed_round_trip_time: MillisecondDuration, round_trip_time_variance: MillisecondDuration, ssthresh: u32) -> RetransmissionTimeOut
 	{
 		Self
 		{
-			retransmission_time_out,
+			smoothed_round_trip_time,
+			round_trip_time_variance,
 			ssthresh,
 		}
 	}
 	
 	#[inline(always)]
-	pub(crate) fn retransmission_time_out(&self) -> RetransmissionTimeOut
+	pub(crate) fn retransmission_time_out_data(&self, is_for_non_synchronized_state: bool) -> RetransmissionTimeOutData
 	{
-		self.retransmission_time_out.clone()
+		RetransmissionTimeOutData::new(self.smoothed_round_trip_time, self.round_trip_time_variance, is_for_non_synchronized_state)
 	}
 	
 	#[inline(always)]
@@ -52,9 +60,25 @@ impl CachedCongestionData
 	}
 	
 	#[inline(always)]
-	pub(crate) fn update_retransmission_time_out(&mut self, retransmission_time_out: RetransmissionTimeOut)
+	pub(crate) fn update_retransmission_time_out(&mut self, smoothed_round_trip_time: MillisecondDuration, round_trip_time_variance: MillisecondDuration)
 	{
-		self.retransmission_time_out.average_with(retransmission_time_out)
+		if self.smoothed_round_trip_time == RetransmissionTimeOutData::InitialSmoothedRoundTripTime
+		{
+			self.smoothed_round_trip_time = smoothed_round_trip_time;
+		}
+		else
+		{
+			self.smoothed_round_trip_time = (self.smoothed_round_trip_time + smoothed_round_trip_time) / 2;
+		}
+		
+		if self.round_trip_time_variance == RetransmissionTimeOutData::InitialRoundTripTimeVariance
+		{
+			self.round_trip_time_variance = round_trip_time_variance;
+		}
+		else
+		{
+			self.round_trip_time_variance = (self.round_trip_time_variance + round_trip_time_variance) / 2;
+		}
 	}
 	
 	#[inline(always)]

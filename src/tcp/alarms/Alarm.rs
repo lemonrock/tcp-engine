@@ -20,25 +20,37 @@ pub(crate) struct Alarm<AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstra
 	alarm_behaviour: AB,
 }
 
-impl<AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstractions> Default for Alarm<AB, TCBA>
+impl<AB: AlarmBehaviour + Default, TCBA: TransmissionControlBlockAbstractions> Default for Alarm<AB, TCBA>
 {
 	#[inline(always)]
 	fn default() -> Self
 	{
-		Self
-		{
-			next: unsafe { uninitialized() },
-			previous: unsafe { uninitialized() },
-			compressed_ring_slot_index: Self::RingSlotIndexForUnscheduledAlarm,
-			compressed_reschedule_slot_indices: 0,
-			alarm_behaviour: AB::default(),
-		}
+		Self::new(AB::default())
 	}
 }
 
 impl<AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstractions> Alarm<AB, TCBA>
 {
 	const RingSlotIndexForUnscheduledAlarm: u16 = (NumberOfRingSlotsForAlarmsSoonToGoOffCompilerHack + 1) as u16;
+	
+	#[inline(always)]
+	pub(crate) fn new(alarm_behaviour: AB) -> Self
+	{
+		Self
+		{
+			next: unsafe { uninitialized() },
+			previous: unsafe { uninitialized() },
+			compressed_ring_slot_index: Self::RingSlotIndexForUnscheduledAlarm,
+			compressed_remainder: 0,
+			alarm_behaviour,
+		}
+	}
+	
+	#[inline(always)]
+	pub(crate) fn alarm_behaviour_reference(&self) -> &AB
+	{
+		&self.alarm_behaviour
+	}
 	
 	#[inline(always)]
 	pub(crate) fn alarm_behaviour_mutable_reference(&mut self) -> &mut AB

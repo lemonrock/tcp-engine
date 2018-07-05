@@ -3,7 +3,7 @@
 
 
 #[derive(Debug)]
-struct Timestamping
+pub(crate) struct Timestamping
 {
 	our_offset: u32,
 	

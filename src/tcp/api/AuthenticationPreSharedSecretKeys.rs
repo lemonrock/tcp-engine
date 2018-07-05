@@ -11,12 +11,21 @@
 #[derive(Debug, Clone)]
 pub struct AuthenticationPreSharedSecretKeys<Address: InternetProtocolAddress>
 {
-	/// MD5 keys.
-	pub md5: HashMap<Md5AuthenticationConnectionIdentifier<Address>, Rc<Md5PreSharedSecretKey>>,
+	md5: HashMap<Md5AuthenticationConnectionIdentifier<Address>, Rc<Md5PreSharedSecretKey>>,
 }
 
 impl<Address: InternetProtocolAddress> AuthenticationPreSharedSecretKeys<Address>
 {
+	/// Creates a new instance.
+	#[inline(always)]
+	pub fn new(md5: HashMap<Md5AuthenticationConnectionIdentifier<Address>, Rc<Md5PreSharedSecretKey>>) -> Self
+	{
+		Self
+		{
+			md5
+		}
+	}
+	
 	#[inline(always)]
 	pub(crate) fn authentication_is_required(&self, remote_internet_protocol_address: &Address, local_port: NetworkEndianU16) -> bool
 	{

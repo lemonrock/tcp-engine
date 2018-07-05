@@ -38,5 +38,6 @@ impl<TCBA: TransmissionControlBlockAbstractions> AlarmBehaviour for UserTimeOutA
 
 impl<TCBA: TransmissionControlBlockAbstractions> UserTimeOutAlarmBehaviour<TCBA>
 {
-	// todo: remove linger from Alarms.
+	// TODO: change this as state changes.
+	xxxx
 }

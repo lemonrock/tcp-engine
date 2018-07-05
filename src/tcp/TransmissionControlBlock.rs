@@ -36,9 +36,7 @@ pub(crate) struct TransmissionControlBlock<TCBA: TransmissionControlBlockAbstrac
 	///
 	/// RFC 793: "If this option is present, then it communicates the maximum receive segment size at the TCP which sends this segment".
 	///
-	/// RFC 879, Section 1: "The default TCP Maximum Segment Size is 536".
-	///
-	/// RFC 879, Section 3, Paragraph 2: "The MSS counts only data octets in the segment, it does not count the TCP header or the IP header".
+	/// RFC 6691, Section 2: "When calculating the value to put in the TCP MSS option, the MTU value SHOULD be decreased by only the size of the fixed IP and TCP headers and SHOULD NOT be decreased to account for any possible IP or TCP options".
 	maximum_segment_size_to_send_to_remote: u16,
 	
 	/// This value is uninitialized until the state becomes established.

@@ -2,7 +2,7 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
-/// This design uses a variant of RFC 6526 Section 3.
+/// This design uses a variant of RFC 6528 Section 3.
 ///
 /// In this variant:-
 ///
@@ -50,9 +50,9 @@ impl InitialSequenceNumberGenerator
 	{
 		const FourMicrosecondTick: u64 = 4;
 		
-		let rfc_6526_M = MonotonicMillisecondTimestamp::microseconds_since_boot() / FourMicrosecondTick;
+		let rfc_6528_M = MonotonicMillisecondTimestamp::microseconds_since_boot() / FourMicrosecondTick;
 		
-		rfc_6526_M + Self::random_offset()
+		rfc_6528_M + Self::random_offset()
 	}
 	
 	#[inline(always)]

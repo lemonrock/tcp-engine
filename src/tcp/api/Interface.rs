@@ -184,8 +184,12 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 			drop!(packet, "TCP null scan")
 		}
 		
+		// RFC 3360 Section 2.1: "... the Reserved field should be zero when sent and ignored when received, unless specified otherwise by future standards actions".
+		//
+		// We VIOLATE the RFC here.
 		if unlikely(SEG.are_reserved_bits_set_or_has_historic_nonce_sum_flag())
 		{
+			// RFC 3360 Section 2.1: "... the phrasing in RFC 793 does not permit sending resets in response to TCP	packets with a non-zero Reserved field, as is explained in the section above".
 			drop!(packet, "TCP reserved bits are set or has historic Nonce Sum (NS) flag")
 		}
 		

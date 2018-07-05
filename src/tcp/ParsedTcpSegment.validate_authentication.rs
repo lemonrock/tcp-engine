@@ -18,7 +18,7 @@ macro_rules! validate_authentication
 				
 				Some(ref authentication) => match authentication
 				{
-					Rfc5925Authentication { .. } => invalid!($self, "TCP RFC 5962 authentication is not yet supported"),
+					Rfc5925Authentication { .. } => invalid!($self, "TCP RFC 5925 authentication is not yet supported"),
 					
 					Rfc2385ObsoleteMD5 { digest } => match $self.interface.find_md5_authentication_key($self.source_internet_protocol_address, $self.remote_port_local_port())
 					{

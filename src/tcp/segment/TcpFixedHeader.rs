@@ -27,7 +27,10 @@ impl TcpFixedHeader
 		self.source_port_destination_port = remote_port_local_port.for_send();
 		self.sequence_number = SEQ.into();
 		self.acknowledgment_sequence_number = ACK.into();
+		
+		// RFC 3360 Section 2.1: "... the Reserved field should be zero when sent ... unless specified otherwise by future standards actions".
 		self.data_offset_reserved_bits_nonce_sum_flag = DataOffsetReservedBitsNonceSumFlag::from_padded_options_size(padded_options_size);
+		
 		self.flags = flags;
 		self.window_size = window_size.into();
 		self.checksum = NetworkEndianU16::Zero;

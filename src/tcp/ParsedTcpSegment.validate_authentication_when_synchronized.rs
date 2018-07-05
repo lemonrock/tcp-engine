@@ -18,7 +18,7 @@ macro_rules! validate_authentication_when_synchronized
 				
 				Some(ref authentication) => match authentication
 				{
-					Rfc5925Authentication { .. } => invalid!($self, "TCP RFC 5962 authentication is not yet supported"),
+					Rfc5925Authentication { .. } => invalid!($self, "TCP RFC 5925 authentication is not yet supported"),
 					
 					Rfc2385ObsoleteMD5 { digest } => match $transmission_control_block.md5_authentication_key()
 					{

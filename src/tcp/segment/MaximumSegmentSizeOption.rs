@@ -2,7 +2,7 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
-/// RFC 879, Section 3, Paragraph 2: "The MSS counts only data octets in the segment, it does not count the TCP header or the IP header".
+/// RFC 6691, Section 2: "When calculating the value to put in the TCP MSS option, the MTU value SHOULD be decreased by only the size of the fixed IP and TCP headers and SHOULD NOT be decreased to account for any possible IP or TCP options".
 ///
 /// Maximum Segment Size is also called 'MSS'.
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
@@ -35,8 +35,6 @@ impl MaximumSegmentSizeOption
 	
 	pub(crate) const KnownLength: usize = 4;
 	
-	/// RFC 879, Section 1: "The default TCP Maximum Segment Size is 536".
-	///
 	/// RFC 6691 Section 2: "The MTU value SHOULD be decreased by only the size of the fixed IP and TCP headers and SHOULD NOT be decreased to account for any possible IP or TCP options".
 	///
 	/// In effect, for IPv4 it is `576 - size_of(IPv4 header) - size_of(TCP header)`,

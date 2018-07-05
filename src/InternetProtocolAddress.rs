@@ -100,7 +100,7 @@ pub trait InternetProtocolAddress: NetworkEndian
 	
 	/// Calculates an internet protocol TCP check sum.
 	#[inline(always)]
-	fn calculate_internet_protocol_tcp_check_sum(source_internet_protocol_address: &Self, destination_internet_protocol_address: &Self, internet_packet_payload_pointer: NonNull<u8>, layer_4_packet_size: usize) -> Rfc1071CompliantCheckSum;
+	fn calculate_internet_protocol_tcp_check_sum(source_internet_protocol_address: &Self, destination_internet_protocol_address: &Self, internet_packet_payload_pointer: NonNull<u8>, layer_4_packet_size: usize) -> Rfc1141CompliantCheckSum;
 	
 	#[doc(hidden)]
 	#[inline(always)]

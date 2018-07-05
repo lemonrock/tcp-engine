@@ -4,18 +4,18 @@
 
 /// An RFC 1071 compliant check sum calculation.
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
-pub struct Rfc1071CompliantCheckSum(u16);
+pub struct Rfc1141CompliantCheckSum(u16);
 
-impl From<u16> for Rfc1071CompliantCheckSum
+impl From<u16> for Rfc1141CompliantCheckSum
 {
 	#[inline(always)]
 	fn from(check_sum: u16) -> Self
 	{
-		Rfc1071CompliantCheckSum(check_sum)
+		Rfc1141CompliantCheckSum(check_sum)
 	}
 }
 
-impl Into<u16> for Rfc1071CompliantCheckSum
+impl Into<u16> for Rfc1141CompliantCheckSum
 {
 	#[inline(always)]
 	fn into(self) -> u16
@@ -24,7 +24,7 @@ impl Into<u16> for Rfc1071CompliantCheckSum
 	}
 }
 
-impl Into<u32> for Rfc1071CompliantCheckSum
+impl Into<u32> for Rfc1141CompliantCheckSum
 {
 	#[inline(always)]
 	fn into(self) -> u32
@@ -33,16 +33,16 @@ impl Into<u32> for Rfc1071CompliantCheckSum
 	}
 }
 
-impl From<NetworkEndianU16> for Rfc1071CompliantCheckSum
+impl From<NetworkEndianU16> for Rfc1141CompliantCheckSum
 {
 	#[inline(always)]
 	fn from(check_sum: NetworkEndianU16) -> Self
 	{
-		Rfc1071CompliantCheckSum(check_sum.to_native_endian())
+		Rfc1141CompliantCheckSum(check_sum.to_native_endian())
 	}
 }
 
-impl Into<NetworkEndianU16> for Rfc1071CompliantCheckSum
+impl Into<NetworkEndianU16> for Rfc1141CompliantCheckSum
 {
 	#[inline(always)]
 	fn into(self) -> NetworkEndianU16
@@ -51,9 +51,9 @@ impl Into<NetworkEndianU16> for Rfc1071CompliantCheckSum
 	}
 }
 
-impl Rfc1071CompliantCheckSum
+impl Rfc1141CompliantCheckSum
 {
-	const Zero: Self = Rfc1071CompliantCheckSum(0);
+	const Zero: Self = Rfc1141CompliantCheckSum(0);
 	
 	#[inline(always)]
 	pub(crate) fn validates(self) -> bool
@@ -169,6 +169,6 @@ impl Rfc1071CompliantCheckSum
 			sum = (sum & 0x0000FFFF) + (sum >> 16);
 		}
 		
-		Rfc1071CompliantCheckSum((!sum) as u16)
+		Rfc1141CompliantCheckSum((!sum) as u16)
 	}
 }

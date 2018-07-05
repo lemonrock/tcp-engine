@@ -394,7 +394,7 @@ RFC 3449 (BCP 69) TCP Performance Implications of Network Path Asymmetry
 
 RFC 2553 Basic Socket Interface Extensions for IPv6
 
-RFC 6429 TCP Sender Clarification for Persist Condition, December 2011
+RFC 6429 TCP Sender Clarification for Persist Condition
 RFC 2525 Known TCP Implementation Problems
 RFC 1180 TCP/IP tutorial
 

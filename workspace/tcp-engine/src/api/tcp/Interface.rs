@@ -217,7 +217,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 			drop!(packet, "TCP check sum is invalid")
 		}
 		
-		let smallest_acceptable_tcp_maximum_segment_size_option = TCBA::Address::SmallestAcceptableMaximumSegmentSizeOption;
+		let smallest_acceptable_tcp_maximum_segment_size_option = MaximumSegmentSizeOption(TCBA::Address::SmallestAcceptableMaximumSegmentSize);
 		
 		match self.find_transmission_control_block_for_incoming_segment(source_internet_protocol_address, SEG)
 		{
@@ -887,13 +887,13 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 	#[inline(always)]
 	fn create_for_tcp_segment<'a>(&self, remote_internet_protocol_address: &TCBA::Address) -> Result<(TCBA::Packet, &'a mut TcpSegment), ()>
 	{
-		self.transmission_control_block_abstractions.create_packet(&self.local_internet_protocol_address, remote_internet_protocol_address, Self::TcpLayer4ProtocolNumber).map(|(packet, pointer_to_tcp_segment)| (packet, unsafe { &mut * (pointer_to_tcp_segment.as_ptr() as *mut TcpSegment) }))
+		self.transmission_control_block_abstractions.create_packet(&self.local_internet_protocol_address, remote_internet_protocol_address, Self::Layer4ProtocolNumber::Tcp).map(|(packet, pointer_to_tcp_segment)| (packet, unsafe { &mut * (pointer_to_tcp_segment.as_ptr() as *mut TcpSegment) }))
 	}
 	
 	#[inline(always)]
 	fn reuse_reversing_source_and_destination_addresses_for_tcp_segment<'a>(&self, packet: TCBA::Packet) -> &'a mut TcpSegment
 	{
-		let pointer_to_tcp_segment = self.transmission_control_block_abstractions.reuse_packet_reversing_source_and_destination_addresses(Self::TcpLayer4ProtocolNumber, packet);
+		let pointer_to_tcp_segment = self.transmission_control_block_abstractions.reuse_packet_reversing_source_and_destination_addresses(Self::Layer4ProtocolNumber::Tcp, packet);
 		
 		unsafe { &mut * (pointer_to_tcp_segment.as_ptr() as *mut TcpSegment) }
 	}

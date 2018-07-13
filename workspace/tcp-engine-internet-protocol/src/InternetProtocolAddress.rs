@@ -21,12 +21,12 @@ pub trait InternetProtocolAddress: NetworkEndian
 	///
 	/// 216 for Internet Protocol version 4 (based on the "MTU" of AX.25 packet radio).
 	/// 1220 for Internet Protocol version 6 when the option "increase-ipv6-mss-default-to-1220" is specified, otherwise 536.
-	const SmallestAcceptableMaximumSegmentSizeOption: MaximumSegmentSizeOption;
+	const SmallestAcceptableMaximumSegmentSize: MaximumSegmentSize;
 	
 	/// Default TCP maximum segment size option.
 	///
-	/// Strictly speaking, this should always be 536, however, on IPv6, it really should have a floor which is the same as SmallestAcceptableMaximumSegmentSizeOption (1220).
-	const DefaultMaximumSegmentSizeOptionIfNoneSpecified: MaximumSegmentSizeOption;
+	/// Strictly speaking, this should always be 536, however, on IPv6, it really should have a floor which is the same as SmallestAcceptableMaximumSegmentSize (1220).
+	const DefaultMaximumSegmentSizeIfNoneSpecified: MaximumSegmentSize;
 	
 	/// Smallest header size.
 	///
@@ -98,7 +98,7 @@ pub trait InternetProtocolAddress: NetworkEndian
 		
 		let index = (data & 0x00FF) as usize;
 		
-		if unlikely(index >= table.len())
+		if unlikely!(index >= table.len())
 		{
 			Err(())
 		}
@@ -114,7 +114,7 @@ pub trait InternetProtocolAddress: NetworkEndian
 	
 	#[doc(hidden)]
 	#[inline(always)]
-	fn secure_hash(digester: &mut impl Md5Digest, source_internet_protocol_address: &Self, destination_internet_protocol_address: &Self, layer_4_protocol_number: u8, layer_4_packet_size: usize);
+	fn secure_hash(digester: &mut impl Digest, source_internet_protocol_address: &Self, destination_internet_protocol_address: &Self, layer_4_protocol_number: Layer4ProtocolNumber, layer_4_packet_size: usize);
 }
 
 impl InternetProtocolAddress for NetworkEndianU32
@@ -124,10 +124,10 @@ impl InternetProtocolAddress for NetworkEndianU32
 	#[cfg(feature = "rfc-4821-minimum-ipv4-path-mtu")] const DefaultPathMaximumTransmissionUnitSize: u16 = 1024;
 	#[cfg(not(feature = "rfc-4821-minimum-ipv4-path-mtu"))] const DefaultPathMaximumTransmissionUnitSize: u16 = 576;
 	
-	#[cfg(feature = "increase-ipv4-mss-acceptable-minimum-to-1024")] const SmallestAcceptableMaximumSegmentSizeOption: MaximumSegmentSizeOption = MaximumSegmentSizeOption::InternetProtocolVersion4MinimumAsPerRfc4821;
-	#[cfg(not(feature = "increase-ipv6-mss-acceptable-minimum-to-1024"))] const SmallestAcceptableMaximumSegmentSizeOption: MaximumSegmentSizeOption = MaximumSegmentSizeOption::InternetProtocolVersion4Minimum;
+	#[cfg(feature = "increase-ipv4-mss-acceptable-minimum-to-1024")] const SmallestAcceptableMaximumSegmentSize: MaximumSegmentSize = MaximumSegmentSize::InternetProtocolVersion4MinimumAsPerRfc4821;
+	#[cfg(not(feature = "increase-ipv6-mss-acceptable-minimum-to-1024"))] const SmallestAcceptableMaximumSegmentSize: MaximumSegmentSize = MaximumSegmentSize::InternetProtocolVersion4Minimum;
 	
-	const DefaultMaximumSegmentSizeOptionIfNoneSpecified: MaximumSegmentSizeOption = Self::SmallestAcceptableMaximumSegmentSizeOption;
+	const DefaultMaximumSegmentSizeIfNoneSpecified: MaximumSegmentSize = Self::SmallestAcceptableMaximumSegmentSize;
 	
 	const SmallestLayer3HeaderSize: u16 = 20;
 	
@@ -140,7 +140,7 @@ impl InternetProtocolAddress for NetworkEndianU32
 	{
 		const Offset: isize = 1;
 		
-		let traffic_class = unsafe { *start_of_layer_3_packet.as_ptr().offset(1) };
+		let traffic_class = unsafe { *start_of_layer_3_packet.as_ptr().offset(Offset) };
 		
 		unsafe { transmute(traffic_class & 0b11) }
 	}
@@ -199,7 +199,7 @@ impl InternetProtocolAddress for NetworkEndianU32
 	}
 	
 	#[inline(always)]
-	fn secure_hash(digester: &mut impl Md5Digest, source_internet_protocol_address: &Self, destination_internet_protocol_address: &Self, layer_4_protocol_number: u8, layer_4_packet_size: usize)
+	fn secure_hash(digester: &mut impl Digest, source_internet_protocol_address: &Self, destination_internet_protocol_address: &Self, layer_4_protocol_number: Layer4ProtocolNumber, layer_4_packet_size: usize)
 	{
 		InternetProtocolVersion4PseudoHeader::secure_hash(digester, source_internet_protocol_address, destination_internet_protocol_address, layer_4_protocol_number, layer_4_packet_size as u16)
 	}
@@ -211,10 +211,10 @@ impl InternetProtocolAddress for NetworkEndianU128
 	
 	const DefaultPathMaximumTransmissionUnitSize: u16 = Self::MinimumPathMaximumTransmissionUnitSize;
 	
-	#[cfg(feature = "increase-ipv6-mss-acceptable-minimum-to-1220")] const SmallestAcceptableMaximumSegmentSizeOption: MaximumSegmentSizeOption = MaximumSegmentSizeOption::InternetProtocolVersion6Minimum;
-	#[cfg(not(feature = "increase-ipv6-mss-acceptable-minimum-to-1220"))] const SmallestAcceptableMaximumSegmentSizeOption: MaximumSegmentSizeOption = MaximumSegmentSizeOption::Default;
+	#[cfg(feature = "increase-ipv6-mss-acceptable-minimum-to-1220")] const SmallestAcceptableMaximumSegmentSize: MaximumSegmentSize = MaximumSegmentSize::InternetProtocolVersion6Minimum;
+	#[cfg(not(feature = "increase-ipv6-mss-acceptable-minimum-to-1220"))] const SmallestAcceptableMaximumSegmentSize: MaximumSegmentSize = MaximumSegmentSize::Default;
 	
-	const DefaultMaximumSegmentSizeOptionIfNoneSpecified: MaximumSegmentSizeOption = Self::SmallestAcceptableMaximumSegmentSizeOption;
+	const DefaultMaximumSegmentSizeIfNoneSpecified: MaximumSegmentSize = Self::SmallestAcceptableMaximumSegmentSize;
 	
 	const SmallestLayer3HeaderSize: u16 = 40;
 	
@@ -237,9 +237,9 @@ impl InternetProtocolAddress for NetworkEndianU128
 	#[inline(always)]
 	fn sorted_common_maximum_segment_sizes() -> &'static [u16]
 	{
-		const SmallestTcpHeader: u16 = size_of::<TcpFixedHeader>() as u16;
+		const SmallestTcpHeader: u16 = 20;
 		
-		const MaximumTransmissionUnitToTcpMaximumSegmentSizeReduction: u16 = Self::SmallestLayer3HeaderSize + SmallestTcpHeader;
+		const MaximumTransmissionUnitToTcpMaximumSegmentSizeReduction: u16 = NetworkEndianU128::SmallestLayer3HeaderSize + SmallestTcpHeader;
 		
 		
 		// Values are chosen based on RFC 2460, Section 8.3:
@@ -264,7 +264,7 @@ impl InternetProtocolAddress for NetworkEndianU128
 	}
 	
 	#[inline(always)]
-	fn secure_hash(digester: &mut impl Md5Digest, source_internet_protocol_address: &Self, destination_internet_protocol_address: &Self, layer_4_protocol_number: u8, layer_4_packet_size: usize)
+	fn secure_hash(digester: &mut impl Digest, source_internet_protocol_address: &Self, destination_internet_protocol_address: &Self, layer_4_protocol_number: Layer4ProtocolNumber, layer_4_packet_size: usize)
 	{
 		InternetProtocolVersion6PseudoHeader::secure_hash(digester, source_internet_protocol_address, destination_internet_protocol_address, layer_4_protocol_number, layer_4_packet_size as u32)
 	}

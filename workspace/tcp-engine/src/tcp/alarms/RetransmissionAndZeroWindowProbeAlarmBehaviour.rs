@@ -8,7 +8,7 @@ pub(crate) struct RetransmissionAndZeroWindowProbeAlarmBehaviour<TCBA: Transmiss
 	retransmission_time_out_data: RetransmissionTimeOutData,
 }
 
-impl<TCBA: TransmissionControlBlockAbstractions> AlarmBehaviour for RetransmissionAndZeroWindowProbeAlarmBehaviour<TCBA>
+impl<TCBA: TransmissionControlBlockAbstractions> AlarmBehaviour<TCBA> for RetransmissionAndZeroWindowProbeAlarmBehaviour<TCBA>
 {
 	#[inline(always)]
 	fn process_alarm<TCBA: TransmissionControlBlockAbstractions>(transmission_control_block: &mut TransmissionControlBlock<TCBA>, interface: &Interface<TCBA>, now: Tick) -> Option<TickDuration>

@@ -13,7 +13,7 @@
 ///
 /// This timer is used with congestion control; see RFC 5681 (which itself obsoletes RFC 2581).
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-struct RetransmissionTimeOutData
+pub struct RetransmissionTimeOutData
 {
 	/// `SRTT`.
 	smoothed_round_trip_time: MillisecondDuration,
@@ -58,18 +58,22 @@ impl RetransmissionTimeOutData
 	const MinimumRetransmissionTimeOut: MillisecondDuration = MillisecondDuration::from_milliseconds(256);
 	
 	/// RFC 6298 Section 2.4 here ("A maximum value MAY be placed on RTO provided it is at least 60 seconds").
-	///
-	/// If the tick size is 128ms, then we our maximum is just over 65 seconds.
-	const MaximumRetransmissionTimeOut: MillisecondDuration = MillisecondDuration::from_tick_duration(AlarmWheel::InclusiveMaximumGoesOffInTicks);
+	const MaximumRetransmissionTimeOut: MillisecondDuration = MillisecondDuration::OneMinute;
 	
 	// This is the reverse of the logic in `compute_retransmission_time_out()`.
-	const InitialSmoothedRoundTripTime: MillisecondDuration = Self::MinimumRetransmissionTimeOut / 3;
+	const InitialSmoothedRoundTripTime: MillisecondDuration = MillisecondDuration(Self::MinimumRetransmissionTimeOut.0 / 3);
 	
 	// This matches the logic in `first_measurement_of_round_trip_time_made()`.
-	const InitialRoundTripTimeVariance: MillisecondDuration = Self::InitialSmoothedRoundTripTime / 2;
+	const InitialRoundTripTimeVariance: MillisecondDuration = MillisecondDuration(Self::InitialSmoothedRoundTripTime.0 / 2);
 	
+	// RFC 6298 Section 5.7: "If the timer expires awaiting the ACK of a SYN segment and the TCP implementation is using an RTO less than 3 seconds, the RTO MUST be re-initialized to 3 seconds when data transmission begins (i.e., after the three-way handshake completes)."
+	//
+	// We VIOLATE the RFC here and use 3 × 128 ms.
+	const ReInitializeRetransmissionTimeOut: MillisecondDuration = MillisecondDuration((Self::MinimumRetransmissionTimeOut.0) * 3);
+	
+	/// Creates a new instance.
 	#[inline(always)]
-	pub(crate) const fn new(smoothed_round_trip_time: MillisecondDuration, round_trip_time_variance: MillisecondDuration, is_for_non_synchronized_state: bool) -> Self
+	pub fn new(smoothed_round_trip_time: MillisecondDuration, round_trip_time_variance: MillisecondDuration, is_for_non_synchronized_state: bool) -> Self
 	{
 		Self
 		{
@@ -88,18 +92,20 @@ impl RetransmissionTimeOutData
 		}
 	}
 	
+	/// Current retransmission time out, `RTO`.
 	#[inline(always)]
-	pub(crate) fn retransmission_time_out(&self) -> MillisecondDuration
+	pub fn retransmission_time_out(&self) -> MillisecondDuration
 	{
 		self.retransmission_time_out
 	}
 	
+	/// Increment retransmissions.
 	#[inline(always)]
-	pub(crate) fn increment_retransmissions(&mut self) -> Option<u8>
+	pub fn increment_retransmissions(&mut self) -> Option<u8>
 	{
 		let number_of_retransmissions = self.number_of_retransmissions;
 		
-		if number_of_retransmissions >= Self::MaximumNumberOfRetransmissions
+		if number_of_retransmissions >= Self::MaximumNumberOfRetransmissions as u8
 		{
 			return None
 		}
@@ -129,31 +135,31 @@ impl RetransmissionTimeOutData
 		Some(number_of_retransmissions)
 	}
 	
+	/// Reset retransmissions.
 	#[inline(always)]
-	pub(crate) fn reset_retransmissions(&mut self)
+	pub fn reset_retransmissions(&mut self)
 	{
 		self.number_of_retransmissions = 0
 	}
 	
+	/// Reset retransmissions after establishing state if we sent the first Synchronize segment and the retransmission timer fired at least once.
 	#[inline(always)]
-	pub(crate) fn reset_after_establishment_of_state_if_we_sent_the_first_synchronize_segment_and_the_timer_expired(&mut self)
+	pub fn reset_after_establishment_of_state_if_we_sent_the_first_synchronize_segment_and_the_timer_expired(&mut self)
 	{
-		if self.number_of_retransmissions != 0 && self.retransmission_time_out()
+		if self.number_of_retransmissions != 0
 		{
-			self.retransmission_time_out = MillisecondDuration::ThreeSeconds;
+			self.retransmission_time_out = Self::ReInitializeRetransmissionTimeOut;
 			self.number_of_retransmissions = 0
 		}
 	}
+	
+	/// Entering established state; a different set of back off scalars will now apply.
 	#[inline(always)]
-	pub(crate) fn entering_established_state(&mut self)
+	pub fn entering_established_state(&mut self)
 	{
-		// RFC 6298 Section 5.7: "If the timer expires awaiting the ACK of a SYN segment and the TCP implementation is using an RTO less than 3 seconds, the RTO MUST be re-initialized to 3 seconds when data transmission begins (i.e., after the three-way handshake completes)."
-		//
-		// We VIOLATE the RFC here and use 3 × 128 ms.
-		const ReInitializeRetransmissionTimeOut: MillisecondDuration = Self::MinimumRetransmissionTimeOut * 3;
-		if self.retransmission_time_out() < ReInitializeRetransmissionTimeOut
+		if self.retransmission_time_out() < Self::ReInitializeRetransmissionTimeOut
 		{
-			self.retransmission_time_out = ReInitializeRetransmissionTimeOut;
+			self.retransmission_time_out = Self::ReInitializeRetransmissionTimeOut;
 		}
 		
 		self.back_off_scalars = &AllOtherStatesBackOffScalars;
@@ -161,12 +167,13 @@ impl RetransmissionTimeOutData
 		self.number_of_retransmissions = 0;
 	}
 	
+	/// Process a round trip time measurement.
 	#[inline(always)]
-	pub(crate) fn process_measurement_of_round_trip_time(&mut self, measurement_of_round_trip_time: MillisecondDuration)
+	pub fn process_measurement_of_round_trip_time(&mut self, measurement_of_round_trip_time: MillisecondDuration)
 	{
 		self.number_of_retransmissions = 0;
 		
-		if unlikely(measurement_of_round_trip_time.is_zero())
+		if unlikely!(measurement_of_round_trip_time.is_zero())
 		{
 			return
 		}
@@ -181,8 +188,9 @@ impl RetransmissionTimeOutData
 		}
 	}
 	
+	/// Obtain current smoothed round trip time, `SRTT`, and round trip time variances, `RTTVAR`.
 	#[inline(always)]
-	pub(crate) fn smoothed_round_trip_time_and_round_trip_time_variance(&self) -> (MillisecondDuration, MillisecondDuration)
+	pub fn smoothed_round_trip_time_and_round_trip_time_variance(&self) -> (MillisecondDuration, MillisecondDuration)
 	{
 		if self.round_trip_time_measurements_are_bogus()
 		{
@@ -199,7 +207,7 @@ impl RetransmissionTimeOutData
 	#[inline(always)]
 	fn round_trip_time_measurements_are_bogus(&self) -> bool
 	{
-		self.number_of_retransmissions > Self::ExclusiveMaximumNumberOfTransmissionsBeforeResetingMeasurementOfRoundTripTime || (self.smoothed_round_trip_time == Self::InitialSmoothedRoundTripTime && self.round_trip_time_variance == Self::InitialRoundTripTimeVariance)
+		self.number_of_retransmissions > (Self::ExclusiveMaximumNumberOfTransmissionsBeforeResetingMeasurementOfRoundTripTime as u8) || (self.smoothed_round_trip_time == Self::InitialSmoothedRoundTripTime && self.round_trip_time_variance == Self::InitialRoundTripTimeVariance)
 	}
 	
 	/// RFC 6298 Section 2.2 & RFC 2988 Section 2.2: "When the first RTT measurement R is made, the host MUST set
@@ -209,6 +217,7 @@ impl RetransmissionTimeOutData
 	/// where K = 4.
 	/// ".
 	#[inline(always)]
+	#[allow(non_snake_case)]
 	fn first_measurement_of_round_trip_time_made(&mut self, measurement_of_round_trip_time: MillisecondDuration)
 	{
 		let R = measurement_of_round_trip_time;
@@ -228,6 +237,8 @@ impl RetransmissionTimeOutData
 	/// The above SHOULD be computed using alpha=1/8 and beta=1/4 (as suggested in JK88 (Jacobson, V. and M. Karels, Congestion Avoidance and Control)).
 	///
 	/// After the computation, a host MUST update RTO <- SRTT + max (G, K*RTTVAR)".
+	#[inline(always)]
+	#[allow(non_snake_case)]
 	fn subsequent_measurement_of_round_trip_time(&mut self, measurement_of_round_trip_time: MillisecondDuration)
 	{
 		// R'.
@@ -238,14 +249,14 @@ impl RetransmissionTimeOutData
 		// `4 * RTTVAR = 3 * self.round_trip_time_variance + |SRTT - R'|`.
 		// `RTTVAR = (3 * self.round_trip_time_variance + |SRTT - R'|) / 4`.
 		// So, instead of `self.round_trip_time_variance = (1 - beta) * self.round_trip_time_variance + beta + self.smoothed_round_trip_time.absolute_difference(Rdash)`, we have:-
-		self.round_trip_time_variance = (3 * self.round_trip_time_variance + self.smoothed_round_trip_time.absolute_difference(Rdash)) / 4;
+		self.round_trip_time_variance = (self.round_trip_time_variance * 3 + self.smoothed_round_trip_time.absolute_difference(Rdash)) / 4;
 		
 		// Nominally, `alpha` is ¹⁄₈ and `1 - alpha` is ⁷⁄₈
 		// Thus, `SRTT = (1 - alpha) * SRTT + alpha * R'` is actually `SRTT = ⁷⁄₈ * SRTT + ¹⁄₈ * R'`; we can then multiply by 8 to get:-
 		// `8 * SRTT = 7 * SRTT + R'` .
 		// `SRTT = (7 * SRTT + R') / 8.
 		// So, instead of `self.smoothed_round_trip_time = (1 - alpha) * self.smoothed_round_trip_time + alpha * Rdash`, we have:-
-		self.smoothed_round_trip_time = (7 * self.smoothed_round_trip_time + Rdash) / 8;
+		self.smoothed_round_trip_time = (self.smoothed_round_trip_time * 7 + Rdash) / 8;
 		
 		self.recompute_retransmission_time_out();
 	}
@@ -260,7 +271,7 @@ impl RetransmissionTimeOutData
 	fn compute_retransmission_time_out(smoothed_round_trip_time: MillisecondDuration, round_trip_time_variance: MillisecondDuration) -> MillisecondDuration
 	{
 		// Clock granularity of `G` milliseconds.
-		const G: MillisecondDuration = Self::ClockGranularity;
+		const G: MillisecondDuration = RetransmissionTimeOutData::ClockGranularity;
 		
 		const K: u64 = 4;
 		

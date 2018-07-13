@@ -11,6 +11,4 @@ pub mod tcp;
 
 
 include!("CheckSumLayering.rs");
-include!("ExplicitCongestionNotificationState.rs");
-include!("InternetProtocolAddress.rs");
 include!("NetworkPacket.rs");

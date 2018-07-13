@@ -12,5 +12,4 @@ include!("AlarmWheel.rs");
 include!("DereferenceUnchecked.rs");
 include!("KeepAliveAlarmBehaviour.rs");
 include!("RetransmissionAndZeroWindowProbeAlarmBehaviour.rs");
-include!("RetransmissionTimeOutData.rs");
 include!("UserTimeOutAlarmBehaviour.rs");

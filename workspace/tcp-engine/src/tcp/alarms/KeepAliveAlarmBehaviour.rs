@@ -9,7 +9,7 @@ pub(crate) struct KeepAliveAlarmBehaviour<TCBA: TransmissionControlBlockAbstract
 	number_of_keep_alive_probes_sent_once_keep_alive_time_expired: u8,
 }
 
-impl<TCBA: TransmissionControlBlockAbstractions> AlarmBehaviour for KeepAliveAlarmBehaviour<TCBA>
+impl<TCBA: TransmissionControlBlockAbstractions> AlarmBehaviour<TCBA> for KeepAliveAlarmBehaviour<TCBA>
 {
 	#[inline(always)]
 	fn process_alarm(transmission_control_block: &mut TransmissionControlBlock<TCBA>, interface: &Interface<TCBA>, now: Tick) -> Option<TickDuration>

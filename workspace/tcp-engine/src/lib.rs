@@ -50,9 +50,6 @@ use self::time::*;
 pub mod api;
 
 
-/// Check sums.
-pub mod check_sums;
-
 
 pub(crate) mod ports;
 

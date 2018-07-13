@@ -33,12 +33,14 @@ impl Default for ExplicitCongestionNotification
 
 impl ExplicitCongestionNotification
 {
+	/// Is an ECT(0) or ECT(1) code point set, or the CE (congestion experienced) flag set?
 	#[inline(always)]
 	pub fn is_ect_or_congestion_experienced_set(self) -> bool
 	{
 		self != ExplicitCongestionNotification::NotCapableTransport
 	}
 	
+	/// Is the CE (congestion experienced) flag set?
 	#[inline(always)]
 	pub fn congestion_encountered(self) -> bool
 	{

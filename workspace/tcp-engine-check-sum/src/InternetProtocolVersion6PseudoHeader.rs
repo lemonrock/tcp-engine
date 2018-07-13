@@ -2,7 +2,7 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
-/// A pseudo-header.
+/// A pseudo-header for Internet Protocol Version 6.
 #[repr(C, packed)]
 pub struct InternetProtocolVersion6PseudoHeader
 {
@@ -16,7 +16,7 @@ pub struct InternetProtocolVersion6PseudoHeader
 impl InternetProtocolVersion6PseudoHeader
 {
 	#[inline(always)]
-	pub(crate) const fn new(source_internet_protocol_version_6_address: &NetworkEndianU128, destination_internet_protocol_version_6_address: &NetworkEndianU128, layer_4_protocol_number: u8, layer_4_packet_size: u32) -> Self
+	pub(crate) fn new(source_internet_protocol_version_6_address: &NetworkEndianU128, destination_internet_protocol_version_6_address: &NetworkEndianU128, layer_4_protocol_number: Layer4ProtocolNumber, layer_4_packet_size: u32) -> Self
 	{
 		Self
 		{
@@ -24,17 +24,18 @@ impl InternetProtocolVersion6PseudoHeader
 			destination_internet_protocol_version_6_address: *destination_internet_protocol_version_6_address,
 			layer_4_packet_size: NetworkEndianU32::from_native_endian(layer_4_packet_size),
 			reserved: unsafe { zeroed() },
-			layer_4_protocol_number,
+			layer_4_protocol_number: layer_4_protocol_number.into(),
 		}
 	}
 	
+	/// Computes a secure hash.
 	#[inline(always)]
-	pub(crate) fn secure_hash(digester: &mut impl Md5Digest, source_internet_protocol_version_4_address: &NetworkEndianU32, destination_internet_protocol_version_4_address: &NetworkEndianU32, layer_4_protocol_number: u8, layer_4_packet_size: u16)
+	pub fn secure_hash(digester: &mut impl Digest, source_internet_protocol_version_6_address: &NetworkEndianU128, destination_internet_protocol_version_6_address: &NetworkEndianU128, layer_4_protocol_number: Layer4ProtocolNumber, layer_4_packet_size: u32)
 	{
-		digester.input(source_internet_protocol_version_4_address.bytes());
-		digester.input(destination_internet_protocol_version_4_address.bytes());
+		digester.input(source_internet_protocol_version_6_address.bytes());
+		digester.input(destination_internet_protocol_version_6_address.bytes());
 		digester.input(NetworkEndianU32::from_native_endian(layer_4_packet_size).bytes());
 		digester.input(&[0, 0, 0]);
-		digester.input(&[layer_4_protocol_number]);
+		digester.input(&[layer_4_protocol_number.into()]);
 	}
 }

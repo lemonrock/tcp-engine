@@ -13,7 +13,7 @@
 #[derive(Default, Debug)]
 pub(crate) struct UserTimeOutAlarmBehaviour<TCBA: TransmissionControlBlockAbstractions>;
 
-impl<TCBA: TransmissionControlBlockAbstractions> AlarmBehaviour for UserTimeOutAlarmBehaviour<TCBA>
+impl<TCBA: TransmissionControlBlockAbstractions> AlarmBehaviour<TCBA> for UserTimeOutAlarmBehaviour<TCBA>
 {
 	#[inline(always)]
 	fn process_alarm(transmission_control_block: &mut TransmissionControlBlock<TCBA>, interface: &Interface<TCBA>, now: Tick) -> Option<TickDuration>

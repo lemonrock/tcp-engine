@@ -4,35 +4,25 @@
 
 #![allow(non_upper_case_globals)]
 #![deny(missing_docs)]
-#![feature(asm)]
 #![feature(const_fn)]
 #![feature(core_intrinsics)]
 
 
-//! # tcp-engine-time
+//! # tcp-engine-internet-protocol
 //!
 
 
+extern crate tcp_engine_check_sum;
 #[macro_use] extern crate tcp_engine_likely;
+extern crate tcp_engine_network_endian;
 
 
-use ::std::error;
-use ::std::cmp::max;
-use ::std::fs::read;
-use ::std::mem::uninitialized;
-use ::std::ops::Add;
-use ::std::ops::AddAssign;
-use ::std::ops::Div;
-use ::std::ops::Mul;
-use ::std::ops::Shl;
-use ::std::ops::Sub;
-use ::std::thread::sleep;
-use ::std::time::Duration;
+use ::std::mem::transmute;
+use ::std::ptr::NonNull;
+use ::tcp_engine_check_sum::*;
+use ::tcp_engine_network_endian::*;
 
 
-
-include!("MillisecondDuration.rs");
-include!("MonotonicMillisecondTimestamp.rs");
-include!("RetransmissionTimeOutData.rs");
-include!("Tick.rs");
-include!("TickDuration.rs");
+include!("ExplicitCongestionNotification.rs");
+include!("InternetProtocolAddress.rs");
+include!("MaximumSegmentSize.rs");

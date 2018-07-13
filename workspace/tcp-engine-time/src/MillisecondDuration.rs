@@ -104,6 +104,28 @@ impl Div for MillisecondDuration
 	}
 }
 
+impl Div<u64> for MillisecondDuration
+{
+	type Output = Self;
+	
+	#[inline(always)]
+	fn div(self, rhs: u64) -> Self::Output
+	{
+		MillisecondDuration(self.0 / rhs)
+	}
+}
+
+impl Shl<u64> for MillisecondDuration
+{
+	type Output = Self;
+	
+	#[inline(always)]
+	fn shl(self, rhs: u64) -> Self::Output
+	{
+		MillisecondDuration(self.0 << rhs)
+	}
+}
+
 impl Default for MillisecondDuration
 {
 	#[inline(always)]
@@ -135,6 +157,9 @@ impl MillisecondDuration
 	
 	/// Thirty seconds.
 	pub const ThirtySeconds: Self = Self::from_seconds(30);
+	
+	/// One minute.
+	pub const OneMinute: Self = Self::from_minutes(1);
 	
 	/// Two minutes.
 	pub const TwoMinutes: Self = Self::from_minutes(2);

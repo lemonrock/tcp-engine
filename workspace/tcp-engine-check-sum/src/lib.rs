@@ -4,35 +4,27 @@
 
 #![allow(non_upper_case_globals)]
 #![deny(missing_docs)]
-#![feature(asm)]
 #![feature(const_fn)]
-#![feature(core_intrinsics)]
 
 
-//! # tcp-engine-time
+//! # tcp-engine-check-sum
 //!
 
-
-#[macro_use] extern crate tcp_engine_likely;
-
-
-use ::std::error;
-use ::std::cmp::max;
-use ::std::fs::read;
-use ::std::mem::uninitialized;
-use ::std::ops::Add;
-use ::std::ops::AddAssign;
-use ::std::ops::Div;
-use ::std::ops::Mul;
-use ::std::ops::Shl;
-use ::std::ops::Sub;
-use ::std::thread::sleep;
-use ::std::time::Duration;
+extern crate digest;
+extern crate tcp_engine_network_endian;
 
 
+pub use ::digest::Digest;
+use ::std::fmt;
+use ::std::fmt::Display;
+use ::std::fmt::Formatter;
+use ::std::mem::size_of;
+use ::std::mem::zeroed;
+use ::std::ptr::NonNull;
+use ::tcp_engine_network_endian::*;
 
-include!("MillisecondDuration.rs");
-include!("MonotonicMillisecondTimestamp.rs");
-include!("RetransmissionTimeOutData.rs");
-include!("Tick.rs");
-include!("TickDuration.rs");
+
+include!("InternetProtocolVersion4PseudoHeader.rs");
+include!("InternetProtocolVersion6PseudoHeader.rs");
+include!("Layer4ProtocolNumber.rs");
+include!("Rfc1141CompliantCheckSum.rs");

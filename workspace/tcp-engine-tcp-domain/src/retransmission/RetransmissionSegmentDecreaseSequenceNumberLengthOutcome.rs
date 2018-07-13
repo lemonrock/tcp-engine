@@ -3,23 +3,18 @@
 
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
-enum RetransmissionSegmentDecreaseSequenceNumberLengthOutcome
+pub(crate) enum RetransmissionSegmentDecreaseSequenceNumberLengthOutcome
 {
 	/// Partial acknowledgments can occur because of TSO (transmission segmentration offload), GSO (generic segmentation offload), middleboxes that repacketize and repacketization before retransmission.
-	Partial
-	{
-		bytes_acknowledged: u32,
-	},
+	Partial,
 	
-	Exact
-	{
-		bytes_acknowledged: u32,
-	},
+	/// Exact.
+	Exact,
 	
 	/// This can be caused by delayed acknowledgments and stretch acknowledgments and LRO (large receive offload) or GRO (generic receive offload).
 	More
 	{
-		bytes_acknowledged: u32,
-		remaining_sequence_number_length: u32
+		#[allow(missing_docs)]
+		remaining_sequence_number_length: u32,
 	},
 }

@@ -18,9 +18,6 @@ pub(crate) mod alarms;
 pub(crate) mod congestion_control;
 
 
-pub(crate) mod retransmission;
-
-
 pub(crate) mod syn_cookies;
 
 

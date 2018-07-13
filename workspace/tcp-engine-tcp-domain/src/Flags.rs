@@ -96,6 +96,13 @@ bitflags!
 
 impl Flags
 {
+	/// Does not contain flags?
+	#[inline(always)]
+	pub fn does_not_contain(&self, flags: Self) -> bool
+	{
+		!self.contains(flags)
+	}
+	
 	/// Contains Reset flag?
 	#[inline(always)]
 	pub fn contains_reset(&self) -> bool

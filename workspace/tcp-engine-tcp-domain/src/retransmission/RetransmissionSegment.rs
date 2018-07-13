@@ -2,8 +2,9 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
+/// A retransmission segment.
 #[repr(C, packed)]
-pub(crate) struct RetransmissionSegment
+pub struct RetransmissionSegment
 {
 	timestamp: MonotonicMillisecondTimestamp,
 	starts_at: WrappingSequenceNumber,
@@ -22,19 +23,20 @@ impl Debug for RetransmissionSegment
 	#[inline(always)]
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
 	{
-		unsafe { write!(f, "RetransmissionSegment()") }
+		write!(f, "RetransmissionSegment()")
 	}
 }
 
 impl RetransmissionSegment
 {
+	/// Create a new instance.
 	#[inline(always)]
-	pub(crate) fn new(timestamp: MonotonicMillisecondTimestamp, starts_at: WrappingSequenceNumber, data_length_excluding_length_of_synchronize_and_finish_controls: u32, flags: Flags) -> Self
+	pub fn new(timestamp: MonotonicMillisecondTimestamp, starts_at: WrappingSequenceNumber, data_length_excluding_length_of_synchronize_and_finish_controls: u32, flags: Flags) -> Self
 	{
-		debug_asert!(flags.does_not_contain(Flags::Reset), "Flags should not contain Reset");
-		debug_asert!(flags.does_not_contain(Flags::Urgent), "Flags should not contain Urgent");
-		debug_asert!(flags.does_not_contain(Flags::Push), "Flags should not contain Push");
-		debug_asert!(flags.does_not_contain(Flags::Synchronize) && flags.does_not_contain(Flags::Finish), "Flags should not contain Synchronize and Finish");
+		debug_assert!(flags.does_not_contain(Flags::Reset), "Flags should not contain Reset");
+		debug_assert!(flags.does_not_contain(Flags::Urgent), "Flags should not contain Urgent");
+		debug_assert!(flags.does_not_contain(Flags::Push), "Flags should not contain Push");
+		debug_assert!(flags.does_not_contain(Flags::Synchronize) && flags.does_not_contain(Flags::Finish), "Flags should not contain Synchronize and Finish");
 		
 		if cfg!(debug_assertions)
 		{
@@ -59,9 +61,9 @@ impl RetransmissionSegment
 		}
 	}
 	
-	// RFC 793 Section 3.3 Page 26 Final Paragraph: "For sequence number purposes, the SYN is considered to occur before the first actual data octet of the segment in which it occurs, while the FIN is considered to occur after the last actual data octet in a segment in which it occurs".
+	/// RFC 793 Section 3.3 Page 26 Final Paragraph: "For sequence number purposes, the SYN is considered to occur before the first actual data octet of the segment in which it occurs, while the FIN is considered to occur after the last actual data octet in a segment in which it occurs".
 	#[inline(always)]
-	pub(crate) fn decrease_sequence_number_length(&self, remaining_sequence_number_length: u32, explicit_congestion_echo: bool) -> Result<RetransmissionSegmentDecreaseSequenceNumberLengthOutcome, TooManySequenceNumbersAcknowledgedError>
+	 fn decrease_sequence_number_length(&mut self, remaining_sequence_number_length: u32, explicit_congestion_echo: bool) -> Result<(u32, RetransmissionSegmentDecreaseSequenceNumberLengthOutcome), TooManySequenceNumbersAcknowledgedError>
 	{
 		use self::RetransmissionSegmentDecreaseSequenceNumberLengthOutcome::*;
 		use self::TooManySequenceNumbersAcknowledgedError::*;
@@ -73,58 +75,39 @@ impl RetransmissionSegment
 			self.explicit_congestion_echo = explicit_congestion_echo;
 		}
 		
-		let control_length = if unlikely(self.flags.contains(Flags::Synchronize))
+		let remaining_sequence_number_length = if unlikely!(self.flags.contains(Flags::Synchronize))
 		{
-			if unlikely(remaining_sequence_number_length == 1)
+			if unlikely!(remaining_sequence_number_length == 1)
 			{
-				return Ok
-				(
-					Exact
-					{
-						bytes_acknowledged: 0,
-					}
-				)
+				return Ok((0, Exact))
 			}
 			
-			self.flags.remove(Flags::Synchronize)
+			self.flags.remove(Flags::Synchronize);
 			
-			-1
+			remaining_sequence_number_length - 1
 		}
 		else
 		{
-			0
+			remaining_sequence_number_length
 		};
-		let remaining_sequence_number_length = remaining_sequence_number_length - control_length;
 		
 		if self.data_length_excluding_length_of_synchronize_and_finish_controls > remaining_sequence_number_length
 		{
 			self.partially_acknowledged = true;
 			self.data_length_excluding_length_of_synchronize_and_finish_controls -= remaining_sequence_number_length;
-			self.starts_at += remaining_sequence_number_length;
+			unsafe { self.starts_at += remaining_sequence_number_length };
 			
-			return Ok
-			(
-				Partial
-				{
-					bytes_acknowledged: remaining_sequence_number_length,
-				}
-			)
+			return Ok((remaining_sequence_number_length, Partial))
 		}
 		let remaining_sequence_number_length = remaining_sequence_number_length - self.data_length_excluding_length_of_synchronize_and_finish_controls;
 		
-		let outcome = if unlikely(self.flags.contains(Flags::Finish))
+		let outcome = if unlikely!(self.flags.contains(Flags::Finish))
 		{
 			match remaining_sequence_number_length
 			{
-				0 => Partial
-				{
-					bytes_acknowledged: self.data_length_excluding_length_of_synchronize_and_finish_controls,
-				},
+				0 => (self.data_length_excluding_length_of_synchronize_and_finish_controls, Partial),
 				
-				1 => Exact
-				{
-					bytes_acknowledged: self.data_length_excluding_length_of_synchronize_and_finish_controls,
-				},
+				1 => (self.data_length_excluding_length_of_synchronize_and_finish_controls, Exact),
 				
 				_ => return Err(SequenceNumbersAfterFinishAcknowledged),
 			}
@@ -133,25 +116,19 @@ impl RetransmissionSegment
 		{
 			if remaining_sequence_number_length == 0
 			{
-				Exact
-				{
-					bytes_acknowledged: self.data_length_excluding_length_of_synchronize_and_finish_controls,
-				}
+				(self.data_length_excluding_length_of_synchronize_and_finish_controls, Exact)
 			}
 			else
 			{
-				More
-				{
-					bytes_acknowledged: self.data_length_excluding_length_of_synchronize_and_finish_controls,
-					remaining_sequence_number_length,
-				}
+				(self.data_length_excluding_length_of_synchronize_and_finish_controls, More { remaining_sequence_number_length })
 			}
 		};
 		Ok(outcome)
 	}
 	
+	#[allow(missing_docs)]
 	#[inline(always)]
-	pub(crate) fn set_unretransmitted_segment_timestamp_if_unset(&self, unretransmitted_segment_timestamp: &mut Option<MonotonicMillisecondTimestamp>)
+	pub fn set_unretransmitted_segment_timestamp_if_unset(&self, unretransmitted_segment_timestamp: &mut Option<MonotonicMillisecondTimestamp>)
 	{
 		if self.has_been_retransmitted || unretransmitted_segment_timestamp.is_some()
 		{
@@ -161,8 +138,9 @@ impl RetransmissionSegment
 		*unretransmitted_segment_timestamp = Some(self.timestamp)
 	}
 	
+	#[allow(missing_docs)]
 	#[inline(always)]
-	pub(crate) fn set_explicit_congestion_echo(&self, explicit_congestion_echo: &mut bool)
+	pub fn set_explicit_congestion_echo(&self, explicit_congestion_echo: &mut bool)
 	{
 		if self.explicit_congestion_echo
 		{

@@ -2,8 +2,9 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
+#[allow(missing_docs)]
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
-enum TooManySequenceNumbersAcknowledgedError
+pub enum TooManySequenceNumbersAcknowledgedError
 {
 	TooManySequenceNumbersAcknowledged,
 	

@@ -29,9 +29,15 @@ use ::hyper_thread_random::generate_hyper_thread_safe_random_u32;
 use ::std::cmp::max;
 use ::std::cmp::min;
 use ::std::cmp::Ordering;
+use ::std::fmt;
+use ::std::fmt::Debug;
+use ::std::fmt::Formatter;
 use ::std::marker::PhantomData;
+use ::std::mem::ManuallyDrop;
+use ::std::mem::needs_drop;
 use ::std::mem::size_of;
 use ::std::mem::zeroed;
+use ::std::mem::uninitialized;
 use ::std::ops::Add;
 use ::std::ops::AddAssign;
 use ::std::ops::Index;
@@ -45,7 +51,6 @@ use ::tcp_engine_authentication::Authentication;
 use ::tcp_engine_authentication::Digest;
 use ::tcp_engine_authentication::TcpSegmentWithAuthenticationData;
 use ::tcp_engine_check_sum::Rfc1141CompliantCheckSum;
-use ::tcp_engine_internet_protocol::InternetProtocolAddress;
 use ::tcp_engine_network_endian::*;
 use ::tcp_engine_ports::*;
 use ::tcp_engine_time::*;
@@ -53,6 +58,10 @@ use ::tcp_engine_time::*;
 
 /// TCP options.
 #[macro_use] pub mod tcp_options;
+
+
+/// Retransmission.
+pub mod retransmission;
 
 
 include!("WrappingSequenceNumber.adjust_comparison_for_wrap_around.rs");

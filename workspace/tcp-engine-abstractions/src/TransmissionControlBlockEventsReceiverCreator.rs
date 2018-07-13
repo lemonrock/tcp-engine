@@ -8,6 +8,7 @@ pub trait TransmissionControlBlockEventsReceiverCreator
 	/// The type of tcp receiver created (typically an enumeration or a wrapper around function pointers).
 	type EventsReceiver: TransmissionControlBlockEventsReceiver;
 	
+	/// Create a receiver.
 	#[inline(always)]
 	fn create<Address: InternetProtocolAddress>(key: &TransmissionControlBlockKey<Address>) -> Self::EventsReceiver;
 }

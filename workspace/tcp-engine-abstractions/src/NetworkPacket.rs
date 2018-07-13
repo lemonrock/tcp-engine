@@ -7,9 +7,11 @@
 /// When received, it is considered to be contiguous.
 pub trait NetworkPacket
 {
+	/// Internet protocol packet offset.
 	#[inline(always)]
 	fn internet_protocol_packet_offset(&self) -> usize;
 	
+	/// Layer 3 packet offset.
 	#[inline(always)]
 	fn layer_4_packet_offset<Address: InternetProtocolAddress>(&self) -> usize;
 	
@@ -22,7 +24,7 @@ pub trait NetworkPacket
 	
 	#[doc(hidden)]
 	#[inline(always)]
-	fn explicit_congestion_notification<Address: InternetProtocolAddress>(&self, internet_protocol_packet_offset: usize) -> ExplicitCongestionNotification
+	fn explicit_congestion_notification<Address: InternetProtocolAddress>(&self) -> ExplicitCongestionNotification
 	{
 		Address::explicit_congestion_notification(self.offset_into_packet_headers::<u8>(self.internet_protocol_packet_offset()))
 	}
@@ -42,6 +44,7 @@ pub trait NetworkPacket
 	
 	// Remaining functions are for when SENDING.
 	
+	/// ?
 	fn attach_payload(&self);
 	// rust_rte_pktmbuf_attach_extbuf(); - but a bit more complex.
 	

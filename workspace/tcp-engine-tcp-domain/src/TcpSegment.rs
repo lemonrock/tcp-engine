@@ -145,8 +145,9 @@ impl TcpSegment
 		self.tcp_fixed_header.data_offset_reserved_bits_nonce_sum_flag.are_reserved_bits_set_or_has_historic_nonce_sum_flag()
 	}
 
+	/// Is the urgent pointer set?
 	#[inline(always)]
-	fn urgent_pointer_if_URG_flag_set_is_not_zero(&self) -> bool
+	pub fn urgent_pointer_if_URG_flag_set_is_not_zero(&self) -> bool
 	{
 		self.tcp_fixed_header.urgent_pointer_if_URG_flag_set.is_not_zero()
 	}

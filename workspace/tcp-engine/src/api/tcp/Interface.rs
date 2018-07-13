@@ -407,7 +407,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 			unsafe { &*NonNull::dangling().as_ptr() }
 		}
 		
-		let key = TransmissionControlBlockKey::from_incoming_segment(remote_internet_protocol_address: Address, SEG: &TcpSegment);
+		let key = TransmissionControlBlockKey::from_incoming_segment(remote_internet_protocol_address: Address, &TcpSegment);
 		
 		let transmission_control_blocks = self.transmission_control_blocks.borrow();
 		

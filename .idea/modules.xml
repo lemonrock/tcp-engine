@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/workspace/tcp-engine/tcp-engine.iml" filepath="$PROJECT_DIR$/workspace/tcp-engine/tcp-engine.iml" />
+      <module fileurl="file://$PROJECT_DIR$/workspace/tcp-engine-abstractions/tcp-engine-abstractions.iml" filepath="$PROJECT_DIR$/workspace/tcp-engine-abstractions/tcp-engine-abstractions.iml" />
       <module fileurl="file://$PROJECT_DIR$/workspace/tcp-engine-authentication/tcp-engine-authentication.iml" filepath="$PROJECT_DIR$/workspace/tcp-engine-authentication/tcp-engine-authentication.iml" />
       <module fileurl="file://$PROJECT_DIR$/workspace/tcp-engine-check-sum/tcp-engine-check-sum.iml" filepath="$PROJECT_DIR$/workspace/tcp-engine-check-sum/tcp-engine-check-sum.iml" />
       <module fileurl="file://$PROJECT_DIR$/workspace/tcp-engine-collections/tcp-engine-collections.iml" filepath="$PROJECT_DIR$/workspace/tcp-engine-collections/tcp-engine-collections.iml" />

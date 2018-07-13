@@ -46,7 +46,7 @@ use ::tcp_engine_ports::*;
 
 
 /// TCP options.
-#[macro_export] pub mod tcp_options;
+#[macro_use] pub mod tcp_options;
 
 
 include!("WrappingSequenceNumber.adjust_comparison_for_wrap_around.rs");

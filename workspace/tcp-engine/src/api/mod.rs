@@ -8,6 +8,3 @@
 
 /// TCP API.
 pub mod tcp;
-
-
-include!("NetworkPacket.rs");

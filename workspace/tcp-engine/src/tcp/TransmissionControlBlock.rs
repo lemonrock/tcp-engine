@@ -93,7 +93,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 		
 		let cached_congestion_data = interface.cached_congestion_data(now, &remote_internet_protocol_address);
 		
-		let key = TransmissionControlBlockKey::from_incoming_segment(remote_internet_protocol_address, SEG);
+		let key = TransmissionControlBlockKey::from_incoming_segment(remote_internet_protocol_address, SEG.SEG);
 		
 		let SEG_WND = SEG.WND();
 		

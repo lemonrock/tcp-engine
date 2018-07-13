@@ -19,8 +19,6 @@ impl Into<u8> for DataOffsetReservedBitsNonceSumFlag
 
 impl DataOffsetReservedBitsNonceSumFlag
 {
-	const DataLengthBitMask: u8 = 0b1111_0000;
-	
 	const ReservedBitsBitMask: u8 = 0b0000_1110;
 	
 	const NonceSumFlagBit: u8 = 0b0000_0001;

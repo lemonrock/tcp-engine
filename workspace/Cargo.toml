@@ -5,6 +5,7 @@
 [workspace]
 members = [
     "tcp-engine",
+    "tcp-engine-authentication",
     "tcp-engine-check-sum",
     "tcp-engine-collections",
     "tcp-engine-internet-protocol",

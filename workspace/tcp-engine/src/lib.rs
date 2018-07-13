@@ -32,30 +32,11 @@ extern crate siphasher;
 
 
 use self::api::*;
-use self::api::network_endian::*;
-use self::api::ports::*;
 #[macro_use] use self::api::tcp::*;
-use self::api::time::*;
-use self::collections::*;
-use self::collections::least_recently_used_cache::*;
-use self::collections::magic_ring_buffer::*;
-use self::check_sums::*;
-use self::packets::*;
-use self::ports::*;
-use self::pseudo_headers::*;
-use self::time::*;
 
 
 /// API.
 pub mod api;
-
-
-
-pub(crate) mod ports;
-
-
-/// Pseudo-headers.
-pub mod pseudo_headers;
 
 
 /// Transmission Control Protocol (TCP).

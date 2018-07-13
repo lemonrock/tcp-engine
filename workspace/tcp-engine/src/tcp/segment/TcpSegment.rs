@@ -11,6 +11,28 @@ pub(crate) struct TcpSegment
 	tcp_options_and_payload: PhantomData<u8>,
 }
 
+impl TcpSegmentWithAuthenticationData for TcpSegment
+{
+	#[inline(always)]
+	fn write_md5_option(options_data_pointer: usize, digest: [u8; 16]) -> usize
+	{
+		Self::write_option(options_data_pointer, AuthenticationOption::Md5SignatureOptionKind, AuthenticationOption::Md5SignatureOptionKnownLength, digest)
+	}
+	
+	#[inline(always)]
+	fn secure_hash_fixed_header(&self, hasher: &mut impl Digest)
+	{
+		self.tcp_fixed_header.secure_hash(hasher)
+	}
+	
+	#[inline(always)]
+	fn secure_hash_payload_data(&self, hasher: &mut impl Digest, padded_options_size: usize, payload_size: usize)
+	{
+		let pointer = self.payload_data_pointer(padded_options_size).as_ptr() as *const u8;
+		hasher.input(unsafe { from_raw_parts(pointer, payload_size) })
+	}
+}
+
 impl TcpSegment
 {
 	/// When processing an acknowledgment: RFC 793, Page 25: "First sequence number of a segment."
@@ -56,19 +78,6 @@ impl TcpSegment
 		{
 			payload_size as u32
 		}
-	}
-
-	#[inline(always)]
-	pub(crate) fn secure_hash_fixed_header(&self, hasher: &mut impl Md5Digest)
-	{
-		self.tcp_fixed_header.secure_hash(hasher)
-	}
-
-	#[inline(always)]
-	pub(crate) fn secure_hash_payload_data(&self, hasher: &mut impl Md5Digest, padded_options_size: usize, payload_size: usize)
-	{
-		let pointer = self.payload_data_pointer(padded_options_size).as_ptr() as *const u8;
-		hasher.input(unsafe { from_raw_parts(pointer, payload_size) })
 	}
 
 	#[inline(always)]
@@ -187,12 +196,6 @@ impl TcpSegment
 	pub(crate) const fn reserve_space_for_md5_option(options_data_pointer: usize) -> usize
 	{
 		options_data_pointer + AuthenticationOption::Md5SignatureOptionKnownLength
-	}
-
-	#[inline(always)]
-	pub(crate) fn write_md5_option(options_data_pointer: usize, digest: [u8; 16]) -> usize
-	{
-		Self::write_option(options_data_pointer, AuthenticationOption::Md5SignatureOptionKind, AuthenticationOption::Md5SignatureOptionKnownLength, digest)
 	}
 
 	#[inline(always)]

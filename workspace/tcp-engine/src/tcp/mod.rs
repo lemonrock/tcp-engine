@@ -15,9 +15,6 @@ use self::syn_cookies::*;
 pub(crate) mod alarms;
 
 
-pub(crate) mod authentication;
-
-
 pub(crate) mod congestion_control;
 
 

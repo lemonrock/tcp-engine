@@ -12,5 +12,6 @@ members = [
     "tcp-engine-likely",
     "tcp-engine-network-endian",
     "tcp-engine-ports",
+    "tcp-engine-tcp-domain",
     "tcp-engine-time",
 ]

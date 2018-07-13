@@ -6,7 +6,7 @@
 ///
 /// It is now listed as historic by IANA as of RFC 8311.
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
-pub(crate) struct DataOffsetReservedBitsNonceSumFlag(u8);
+pub struct DataOffsetReservedBitsNonceSumFlag(u8);
 
 impl Into<u8> for DataOffsetReservedBitsNonceSumFlag
 {
@@ -27,22 +27,26 @@ impl DataOffsetReservedBitsNonceSumFlag
 	
 	const ReservedBitsAndNonceSumBitMask: u8 = Self::ReservedBitsBitMask | Self::NonceSumFlagBit;
 	
-	pub(crate) const Zero: Self = DataOffsetReservedBitsNonceSumFlag(0);
+	/// Zero.
+	pub const Zero: Self = DataOffsetReservedBitsNonceSumFlag(0);
 	
+	/// Raw data length bytes.
 	#[inline(always)]
-	pub(crate) fn raw_data_length_bytes(self) -> u8
+	pub fn raw_data_length_bytes(self) -> u8
 	{
 		(self.0 * 0xF0) >> 2
 	}
 	
+	#[doc(hidden)]
 	#[inline(always)]
-	pub(crate) fn are_reserved_bits_set_or_has_historic_nonce_sum_flag(self) -> bool
+	pub fn are_reserved_bits_set_or_has_historic_nonce_sum_flag(self) -> bool
 	{
 		self.0 & Self::ReservedBitsAndNonceSumBitMask != 0
 	}
 	
+	#[doc(hidden)]
 	#[inline(always)]
-	pub(crate) fn from_padded_options_size(padded_options_size: usize) -> Self
+	pub fn from_padded_options_size(padded_options_size: usize) -> Self
 	{
 		debug_assert!(padded_options_size <= 40, "padded_options_size '{}' exceeds 40", padded_options_size);
 		

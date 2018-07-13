@@ -2,15 +2,16 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
+/// Window size after window shift has been applied.
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
-pub(crate) struct WindowSize(u32);
+pub struct WindowSize(u32);
 
-impl From<u32> for SegmentWindowSize
+impl From<u32> for WindowSize
 {
 	#[inline(always)]
 	fn from(value: u32) -> Self
 	{
-		SegmentWindowSize(value)
+		WindowSize(value)
 	}
 }
 
@@ -25,9 +26,9 @@ impl Into<u32> for WindowSize
 
 impl Shr<WindowScaleOption> for WindowSize
 {
-	type Output = Self;
+	type Output = SegmentWindowSize;
 	
-	fn shl(self, rhs: WindowScaleOption) -> Self::Output
+	fn shr(self, rhs: WindowScaleOption) -> Self::Output
 	{
 		let scalar: u8 = rhs.into();
 		SegmentWindowSize::from((self.0 >> scalar) as u16)
@@ -36,18 +37,22 @@ impl Shr<WindowScaleOption> for WindowSize
 
 impl WindowSize
 {
-	pub(crate) const Zero: WindowSize = WindowSize(0);
+	/// Zero.
+	pub const Zero: WindowSize = WindowSize(0);
 	
-	pub(crate) const Maximum: WindowSize = WindowSize(65_535 << WindowScaleOption::Maximum.0);
+	/// Maximum.
+	pub const Maximum: WindowSize = WindowSize(65_535 << WindowScaleOption::Maximum.0);
 	
+	/// Create a new instance.
 	#[inline(always)]
-	pub(crate) const fn new(window_size: u32) -> Self
+	pub const fn new(window_size: u32) -> Self
 	{
 		WindowSize(window_size)
 	}
 	
+	/// Is zero?
 	#[inline(always)]
-	pub(crate) fn is_zero(self) -> bool
+	pub fn is_zero(self) -> bool
 	{
 		self.0 == Self::Zero.0
 	}

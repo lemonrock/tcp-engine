@@ -2,12 +2,13 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
+/// A TCP timestamps option.
 #[derive(Default, Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 #[repr(C, packed)]
-pub(crate) struct TimestampsOption
+pub struct TimestampsOption
 {
 	/// "TSval"
-	pub(crate) TSval: NetworkEndianU32,
+	pub TSval: NetworkEndianU32,
 	
 	/// "TSecr"
 	///
@@ -15,7 +16,7 @@ pub(crate) struct TimestampsOption
 	/// If the ACK bit is not set in the outgoing TCP header, the sender of that segment SHOULD set the TSecr field to zero.
 	/// ...
 	/// When the ACK bit is not set, the receiver MUST ignore the value of the TSecr field."
-	pub(crate) TSecr: NetworkEndianU32,
+	pub TSecr: NetworkEndianU32,
 }
 
 impl TimestampsOption
@@ -24,8 +25,9 @@ impl TimestampsOption
 	
 	pub(crate) const KnownLength: usize = 10;
 	
+	#[allow(missing_docs)]
 	#[inline(always)]
-	pub(crate) fn from_TSval_only(TSval: NetworkEndianU32) -> Self
+	pub fn from_TSval_only(TSval: NetworkEndianU32) -> Self
 	{
 		Self
 		{
@@ -34,8 +36,9 @@ impl TimestampsOption
 		}
 	}
 	
+	#[allow(missing_docs)]
 	#[inline(always)]
-	pub(crate) fn from_TSval_and_TSecr(TSval: NetworkEndianU32, TSecr: NetworkEndianU32) -> Self
+	pub fn from_TSval_and_TSecr(TSval: NetworkEndianU32, TSecr: NetworkEndianU32) -> Self
 	{
 		Self
 		{

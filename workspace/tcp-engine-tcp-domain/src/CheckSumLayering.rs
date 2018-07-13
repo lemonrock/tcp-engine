@@ -17,7 +17,7 @@ impl CheckSumLayering
 {
 	/// `source_internet_protocol_address` and `destination_internet_protocol_address` are from the point of view of the fields in the Internet Protocol version 4 header or the Internet Protocol version 6 header.
 	#[inline(always)]
-	pub(crate) fn is_tcp_check_sum_invalid<Address: InternetProtocolAddress>(self, SEG: &TcpSegment, layer_4_packet_size: usize, source_internet_protocol_address: &Address, destination_internet_protocol_address: &Address) -> bool
+	pub fn is_tcp_check_sum_invalid<Address: InternetProtocolAddress>(self, SEG: &TcpSegment, layer_4_packet_size: usize, source_internet_protocol_address: &Address, destination_internet_protocol_address: &Address) -> bool
 	{
 		use self::CheckSumLayering::*;
 		
@@ -36,8 +36,11 @@ impl CheckSumLayering
 		}
 	}
 	
+	/// Calculate check sum in software and set it on the TcpSegment.
+	///
+	/// Assumes TcpSegment check sum is zero.
 	#[inline(always)]
-	pub(crate) fn calculate_in_software_and_set_if_required<Address: InternetProtocolAddress>(self, outgoing_tcp_segment: &mut TcpSegment, layer_4_packet_size: usize, source_internet_protocol_address: &Address, destination_internet_protocol_address: &Address)
+	pub fn calculate_in_software_and_set_if_required<Address: InternetProtocolAddress>(self, outgoing_tcp_segment: &mut TcpSegment, layer_4_packet_size: usize, source_internet_protocol_address: &Address, destination_internet_protocol_address: &Address)
 	{
 		use self::CheckSumLayering::*;
 		

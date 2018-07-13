@@ -4,7 +4,7 @@
 
 /// A native-endian wrapping sequence number (ie one that starts again from zero once the maximum is exceeded).
 #[derive(Default, Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub(crate) struct WrappingSequenceNumber(u32);
+pub struct WrappingSequenceNumber(u32);
 
 impl PartialOrd for WrappingSequenceNumber
 {
@@ -85,12 +85,14 @@ impl Add<u32> for WrappingSequenceNumber
 	}
 }
 
-impl AddAssign<u32> for WrappingSequenceNumber
+impl Add<usize> for WrappingSequenceNumber
 {
+	type Output = Self;
+	
 	#[inline(always)]
-	fn add_assign(&mut self, other: u32)
+	fn add(self, other: usize) -> Self::Output
 	{
-		self.increment_u32_mut(other)
+		self.increment_u32(other as u32)
 	}
 }
 
@@ -102,6 +104,15 @@ impl Add<WindowSize> for WrappingSequenceNumber
 	fn add(self, other: WindowSize) -> Self::Output
 	{
 		self.increment_u32(other.into())
+	}
+}
+
+impl AddAssign<u32> for WrappingSequenceNumber
+{
+	#[inline(always)]
+	fn add_assign(&mut self, other: u32)
+	{
+		self.increment_u32_mut(other)
 	}
 }
 
@@ -167,28 +178,33 @@ impl SubAssign<WindowSize> for WrappingSequenceNumber
 
 impl WrappingSequenceNumber
 {
-	pub(crate) const Zero: Self = WrappingSequenceNumber(0);
+	/// Zero.
+	pub const Zero: Self = WrappingSequenceNumber(0);
 	
+	/// Create a new instance.
 	#[inline(always)]
-	pub(crate) const fn new(value: u32) -> Self
+	pub const fn new(value: u32) -> Self
 	{
 		WrappingSequenceNumber(value)
 	}
 	
+	/// Is zero?
 	#[inline(always)]
-	pub(crate) fn is_zero(self) -> bool
+	pub fn is_zero(self) -> bool
 	{
 		self.0 == Self::Zero.0
 	}
 	
+	/// Is not zero?
 	#[inline(always)]
-	pub(crate) fn is_not_zero(self) -> bool
+	pub fn is_not_zero(self) -> bool
 	{
 		self.0 != Self::Zero.0
 	}
 	
+	/// Relative difference.
 	#[inline(always)]
-	pub(crate) fn relative_difference(self, other: Self) -> i32
+	pub fn relative_difference(self, other: Self) -> i32
 	{
 		let us = self.0;
 		let them = other.0;
@@ -203,44 +219,51 @@ impl WrappingSequenceNumber
 		)
 	}
 	
+	/// Next.
 	#[inline(always)]
-	pub(crate) fn next(self) -> Self
+	pub fn next(self) -> Self
 	{
 		self.increment_u32(1)
 	}
 	
+	/// Increment by length in bytes.
 	#[inline(always)]
-	pub(crate) fn increment_by_length_in_bytes(self, increment_in_bytes: usize) -> Self
+	pub fn increment_by_length_in_bytes(self, increment_in_bytes: usize) -> Self
 	{
 		self.increment_u32(increment_in_bytes as u32)
 	}
 	
+	/// Increment (in place).
 	#[inline(always)]
-	pub(crate) fn increment_u32_mut(&mut self, increment: u32)
+	pub fn increment_u32_mut(&mut self, increment: u32)
 	{
 		*self = self.increment_u32(increment)
 	}
 	
+	/// Increment.
 	#[inline(always)]
-	pub(crate) fn increment_u32(self, increment: u32) -> Self
+	pub fn increment_u32(self, increment: u32) -> Self
 	{
 		WrappingSequenceNumber(self.0.wrapping_add(increment))
 	}
 	
+	/// Decrement (in place).
 	#[inline(always)]
-	pub(crate) fn decrement_u32_mut(&mut self, decrement: u32)
+	pub fn decrement_u32_mut(&mut self, decrement: u32)
 	{
 		*self = self.decrement_u32(decrement)
 	}
 	
+	/// Decrement.
 	#[inline(always)]
-	pub(crate) fn decrement_u32(self, decrement: u32) -> Self
+	pub fn decrement_u32(self, decrement: u32) -> Self
 	{
 		WrappingSequenceNumber(self.0.wrapping_sub(decrement))
 	}
 	
+	/// Do the sequence numbers differ so much that wrap around could have happened more than once?
 	#[inline(always)]
-	pub(crate) fn sequence_numbers_differ_by_too_much(self, other: Self) -> bool
+	pub fn sequence_numbers_differ_by_too_much(self, other: Self) -> bool
 	{
 		if self.0 >= other.0
 		{

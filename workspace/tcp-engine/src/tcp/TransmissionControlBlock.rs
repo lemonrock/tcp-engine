@@ -115,7 +115,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 		
 		let RCV_NXT = IRS + 1;
 		
-		let maximum_segment_size = MaximumSegmentSizeOption::maximum_segment_size_to_send_to_remote_u16(parsed_syncookie.their_maximum_segment_size, interface, remote_internet_protocol_address);
+		let maximum_segment_size = Self::maximum_segment_size_to_send_to_remote_u16(parsed_syncookie.their_maximum_segment_size, interface, remote_internet_protocol_address);
 		let selective_acknowledgments_permitted = parsed_syncookie.their_selective_acknowledgment_permitted;
 		let timestamping = Timestamping::new_for_sychronize_received_to_established(tcp_options, now, RCV_NXT);
 		let supports_timestamping = timestamping.is_some();
@@ -350,6 +350,29 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	pub(crate) fn we_are_the_listener(&self) -> bool
 	{
 		self.we_are_the_listener
+	}
+}
+
+/// Maximum segment size.
+impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
+{
+	#[inline(always)]
+	pub(crate) fn maximum_segment_size_to_send_to_remote<TCBA: TransmissionControlBlockAbstractions>(their_maximum_segment_size_options: Option<MaximumSegmentSizeOption>, interface: &Interface<TCBA>, remote_internet_protocol_address: &TCBA::Address)
+	{
+		let maximum_segment_size_option = match their_maximum_segment_size_options
+		{
+			None => TCBA::Address::DefaultMaximumSegmentSizeIfNoneSpecified,
+			
+			Some(their_maximum_segment_size_option) => their_maximum_segment_size_option.0,
+		};
+		
+		Self::maximum_segment_size_to_send_to_remote_u16(maximum_segment_size_option.to_native_endian(), interface, remote_internet_protocol_address)
+	}
+	
+	#[inline(always)]
+	fn maximum_segment_size_to_send_to_remote_u16<TCBA: TransmissionControlBlockAbstractions>(their_maximum_segment_size: u16, interface: &Interface<TCBA>, remote_internet_protocol_address: &TCBA::Address)
+	{
+		min(their_maximum_segment_size, interface.our_current_maximum_segment_size_without_fragmentation(remote_internet_protocol_address))
 	}
 }
 

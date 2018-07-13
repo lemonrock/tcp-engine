@@ -482,7 +482,7 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 		
 		transmission_control_block.RCV.initialize_NXT(IRS);
 		
-		transmission_control_block.maximum_segment_size_to_send_to_remote = MaximumSegmentSizeOption::maximum_segment_size_to_send_to_remote(self.tcp_options.maximum_segment_size, self.interface, self.source_internet_protocol_address);
+		transmission_control_block.maximum_segment_size_to_send_to_remote = TransmissionControlBlock::maximum_segment_size_to_send_to_remote(self.tcp_options.maximum_segment_size, self.interface, self.source_internet_protocol_address);
 		
 		// Processing Incoming Segments 3.4.1.1.
 		match self.tcp_options.window_scale

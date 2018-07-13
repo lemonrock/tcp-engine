@@ -19,7 +19,6 @@ version = "0.0.0"
 
 [dependencies]
 arrayvec = "0.4"
-bitflags = "^1.0"
 dpdk-unix = "0.0.5"
 hyper-thread-random = "^0.4"
 libc = "^0.2"

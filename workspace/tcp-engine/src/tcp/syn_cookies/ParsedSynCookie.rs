@@ -7,18 +7,18 @@ pub(crate) struct ParsedSynCookie
 {
 	/// RFC 793, Glossary, Page 80: "The Initial Receive Sequence number.
 	/// The first sequence number used by the sender on a connection".
-	IRS: WrappingSequenceNumber,
+	pub(crate) IRS: WrappingSequenceNumber,
 	
 	/// RFC 793, Glossary, Page 80: "The Initial Send Sequence number.
 	/// The first sequence number used by the sender on a connection".
-	ISS: WrappingSequenceNumber,
+	pub(crate) ISS: WrappingSequenceNumber,
 	
 	/// RFC 793: "If this option is present, then it communicates the maximum receive segment size at the TCP which sends this segment".
-	their_maximum_segment_size: u16,
+	pub(crate) their_maximum_segment_size: u16,
 	
-	their_window_scale: Option<u8>,
+	pub(crate) their_window_scale: Option<u8>,
 	
-	their_selective_acknowledgment_permitted: bool,
-
-	explicit_congestion_notification_supported: bool,
+	pub(crate) their_selective_acknowledgment_permitted: bool,
+	
+	pub(crate) explicit_congestion_notification_supported: bool,
 }

@@ -4,7 +4,8 @@
 
 bitflags!
 {
-	pub(crate) struct Flags: u8
+	/// Flags.
+	pub struct Flags: u8
 	{
 		/// Congestion Window Reduced (CWR).
 		///
@@ -95,18 +96,21 @@ bitflags!
 
 impl Flags
 {
+	/// Contains Reset flag?
 	#[inline(always)]
 	pub fn contains_reset(&self) -> bool
 	{
 		self.contains(Flags::Reset)
 	}
 	
+	/// Are all flags null?
 	#[inline(always)]
 	pub fn are_null(&self) -> bool
 	{
 		self.is_empty()
 	}
 	
+	/// Has the Urgent flag?
 	#[inline(always)]
 	pub fn has_urgent_flag(&self) -> bool
 	{

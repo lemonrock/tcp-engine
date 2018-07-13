@@ -16,7 +16,7 @@
 /// * A 10Gbit/s link with a RTT of 800ms
 /// * A 100Gbit/s link with a RTT of 80ms
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
-pub(crate) struct SegmentWindowSize(u16);
+pub struct SegmentWindowSize(u16);
 
 impl From<u16> for SegmentWindowSize
 {
@@ -45,16 +45,6 @@ impl Into<NetworkEndianU16> for SegmentWindowSize
 	}
 }
 
-impl Shl<Wind> for SegmentWindowSize
-{
-	type Output = WindowSize;
-	
-	fn shl(self, rhs: Wind) -> Self::Output
-	{
-		self << rhs.Shift
-	}
-}
-
 impl Shl<WindowScaleOption> for SegmentWindowSize
 {
 	type Output = WindowSize;
@@ -63,14 +53,5 @@ impl Shl<WindowScaleOption> for SegmentWindowSize
 	{
 		let scalar: u8 = rhs.into();
 		WindowSize::from((self.0 as u32) << scalar)
-	}
-}
-
-impl SegmentWindowSize
-{
-	#[inline(always)]
-	pub(crate) const fn from_network_endian_u16(value: NetworkEndianU16) -> Self
-	{
-		Self(value)
 	}
 }

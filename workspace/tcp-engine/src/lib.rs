@@ -18,7 +18,6 @@
 
 
 extern crate arrayvec;
-#[macro_use] extern crate bitflags;
 #[cfg(feature = "dpdk-sys")] extern crate dpdk_sys;
 extern crate dpdk_unix;
 extern crate hyper_thread_random;

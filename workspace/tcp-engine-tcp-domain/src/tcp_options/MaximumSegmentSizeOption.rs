@@ -7,7 +7,7 @@
 /// Maximum Segment Size is also called 'MSS'.
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 #[repr(C, packed)]
-pub(crate) struct MaximumSegmentSizeOption(pub(crate) NetworkEndianU16);
+pub struct MaximumSegmentSizeOption(pub NetworkEndianU16);
 
 impl Default for MaximumSegmentSizeOption
 {
@@ -25,7 +25,7 @@ impl From<u16> for MaximumSegmentSizeOption
 	#[inline(always)]
 	fn from(value: u16) -> Self
 	{
-		MaximumSegmentSizeOption(NativeEndianU16::from_native_endian(value))
+		MaximumSegmentSizeOption(NetworkEndianU16::from_native_endian(value))
 	}
 }
 
@@ -35,28 +35,10 @@ impl MaximumSegmentSizeOption
 	
 	pub(crate) const KnownLength: usize = 4;
 	
+	/// To native endian.
 	#[inline(always)]
-	pub(crate) fn to_native_endian(self) -> u16
+	pub fn to_native_endian(self) -> u16
 	{
 		self.0.to_native_endian()
-	}
-	
-	#[inline(always)]
-	pub(crate) fn maximum_segment_size_to_send_to_remote<TCBA: TransmissionControlBlockAbstractions>(their_maximum_segment_size_options: Option<Self>, interface: &Interface<TCBA>, remote_internet_protocol_address: &TCBA::Address)
-	{
-		let maximum_segment_size_option = match their_maximum_segment_size_options
-		{
-			None => TCBA::Address::DefaultMaximumSegmentSizeIfNoneSpecified,
-			
-			Some(their_maximum_segment_size_option) => their_maximum_segment_size_option.0,
-		};
-		
-		Self::maximum_segment_size_to_send_to_remote_u16(maximum_segment_size_option.to_native_endian(), interface, remote_internet_protocol_address)
-	}
-	
-	#[inline(always)]
-	pub(crate) fn maximum_segment_size_to_send_to_remote_u16<TCBA: TransmissionControlBlockAbstractions>(their_maximum_segment_size: u16, interface: &Interface<TCBA>, remote_internet_protocol_address: &TCBA::Address)
-	{
-		min(their_maximum_segment_size, interface.our_current_maximum_segment_size_without_fragmentation(remote_internet_protocol_address))
 	}
 }

@@ -2,23 +2,15 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
-#[macro_use] use super::*;
+use super::*;
 
 
-include!("macros.invalid.rs");
 include!("TcpOptions.parse_options.rs");
 
 
-include!("Authentication.rs");
 include!("AuthenticationOption.rs");
-include!("DataOffsetReservedBitsNonceSumFlag.rs");
-include!("Flags.rs");
 include!("MaximumSegmentSizeOption.rs");
-include!("SegmentWindowSize.rs");
-include!("SelectiveAcknowledgmentBlock.rs");
 include!("SelectiveAcknowledgmentOption.rs");
-include!("TcpSegment.rs");
-include!("TcpFixedHeader.rs");
 include!("TcpOptions.rs");
 include!("TcpOptionsBitSet.rs");
 include!("TimestampsOption.rs");

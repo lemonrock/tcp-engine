@@ -592,7 +592,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 			let mut options_data_pointer = start_of_options_data_pointer;
 			let mut previously_reserved_space_options_data_pointer = 0;
 			
-			options_data_pointer = TcpSegment::write_maximum_segment_size_option(MaximumSegmentSizeOption::maximum_segment_size_to_send_to_remote(their_maximum_segment_size, self, remote_internet_protocol_address));
+			options_data_pointer = TcpSegment::write_maximum_segment_size_option(TransmissionControlBlock::maximum_segment_size_to_send_to_remote(their_maximum_segment_size, self, remote_internet_protocol_address));
 			
 			if likely(their_window_scale.is_some())
 			{

@@ -77,6 +77,13 @@ impl NetworkEndianU16
 		NetworkEndianU16(native_endian.to_be().to_bytes())
 	}
 	
+	/// Is not zero.
+	#[inline(always)]
+	pub fn is_not_zero(self) -> bool
+	{
+		self != Self::Zero
+	}
+	
 	#[inline(always)]
 	fn big_endian_from_bytes(self) -> u16
 	{

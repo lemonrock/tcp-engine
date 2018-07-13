@@ -2,9 +2,10 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
+/// User Time Out Option.
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 #[repr(C, packed)]
-pub(crate) struct UserTimeOutOption(NetworkEndianU32);
+pub struct UserTimeOutOption(NetworkEndianU32);
 
 impl UserTimeOutOption
 {
@@ -16,13 +17,14 @@ impl UserTimeOutOption
 	///
 	/// `local_system_lower_time_out_limit` must be greater than the retransmission timout.
 	#[inline(always)]
-	pub(crate) fn user_timeout_seconds(self, local_system_lower_time_out_limit: u64, local_system_upper_time_out_limit: u64, our_advertised_user_time_out: u64) -> u64
+	pub fn user_timeout_seconds(self, local_system_lower_time_out_limit: u64, local_system_upper_time_out_limit: u64, our_advertised_user_time_out: u64) -> u64
 	{
 		min(local_system_upper_time_out_limit, max(max(our_advertised_user_time_out, self.to_advised_user_time_out_seconds()), local_system_lower_time_out_limit))
 	}
 	
+	/// Converts.
 	#[inline(always)]
-	pub(crate) fn to_advised_user_time_out_seconds(self) -> u64
+	pub fn to_advised_user_time_out_seconds(self) -> u64
 	{
 		let native = self.0.to_native_endian();
 		

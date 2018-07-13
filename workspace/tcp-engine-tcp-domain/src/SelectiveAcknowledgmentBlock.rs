@@ -2,9 +2,13 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
+/// A Selective Acknowledgment block.
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
-pub(crate) struct SelectiveAcknowledgmentBlock
+pub struct SelectiveAcknowledgmentBlock
 {
-	pub(crate) left_edge_of_block: WrappingSequenceNumber,
-	pub(crate) right_edge_of_block: WrappingSequenceNumber,
+	/// Left edge of block.
+	pub left_edge_of_block: WrappingSequenceNumber,
+	
+	/// Right edge of block.
+	pub right_edge_of_block: WrappingSequenceNumber,
 }

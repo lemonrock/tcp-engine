@@ -2,8 +2,9 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
+/// Window Scale Option.
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
-pub(crate) struct WindowScaleOption(u8);
+pub struct WindowScaleOption(pub(crate) u8);
 
 impl Default for WindowScaleOption
 {
@@ -45,13 +46,17 @@ impl WindowScaleOption
 {
 	pub(crate) const Kind: u8 = 3;
 	
-	pub(crate) const Zero: Self = WindowScaleOption(0);
-	
-	pub(crate) const BufferSizeOf256Kb: Self = WindowScaleOption(2);
-	
-	pub(crate) const Maximum: Self = WindowScaleOption(14);
-	
 	pub(crate) const KnownLength: usize = 3;
 	
-	pub(crate) const EquivalentToNoWindowScale: Self = Self::Zero;
+	/// Zero.
+	pub const Zero: Self = WindowScaleOption(0);
+	
+	/// 256Kb buffer size.
+	pub const BufferSizeOf256Kb: Self = WindowScaleOption(2);
+	
+	/// Maximum.
+	pub const Maximum: Self = WindowScaleOption(14);
+	
+	/// Equivalent to no window scale supplied.
+	pub const EquivalentToNoWindowScale: Self = Self::Zero;
 }

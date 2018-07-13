@@ -2,16 +2,18 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
+/// TCP options.
+#[allow(missing_docs)]
 #[derive(Default, Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
-pub(crate) struct TcpOptions
+pub struct TcpOptions
 {
-	pub(crate) maximum_segment_size: Option<MaximumSegmentSizeOption>,
-	pub(crate) window_scale: Option<WindowScaleOption>,
-	pub(crate) selective_acknowledgment_permitted: bool,
-	pub(crate) selective_acknowledgment: Option<SelectiveAcknowledgmentOption>,
-	pub(crate) timestamps: Option<TimestampsOption>,
-	pub(crate) user_time_out: Option<UserTimeOutOption>,
-	pub(crate) authentication: Option<AuthenticationOption>,
+	pub maximum_segment_size: Option<MaximumSegmentSizeOption>,
+	pub window_scale: Option<WindowScaleOption>,
+	pub selective_acknowledgment_permitted: bool,
+	pub selective_acknowledgment: Option<SelectiveAcknowledgmentOption>,
+	pub timestamps: Option<TimestampsOption>,
+	pub user_time_out: Option<UserTimeOutOption>,
+	pub authentication: Option<AuthenticationOption>,
 }
 
 impl TcpOptions

@@ -21,13 +21,11 @@ pub(crate) mod congestion_control;
 pub(crate) mod retransmission;
 
 
-#[macro_use] pub(crate) mod segment;
-
-
 pub(crate) mod syn_cookies;
 
 
 include!("ParsedTcpSegment.increment_statistic.rs");
+include!("ParsedTcpSegment.invalid.rs");
 include!("ParsedTcpSegment.processing_incoming_segments_4_1_check_sequence_number.rs");
 include!("ParsedTcpSegment.processing_incoming_segments_4_2_check_the_rst_bit.rs");
 include!("ParsedTcpSegment.processing_incoming_segments_4_4_check_the_syn_bit.rs");
@@ -38,22 +36,14 @@ include!("ParsedTcpSegment.rfc_5961_5_2_acknowledgment_is_acceptable.rs");
 include!("ParsedTcpSegment.unreachable_synthetic_state.rs");
 include!("ParsedTcpSegment.validate_authentication.rs");
 include!("ParsedTcpSegment.validate_authentication_when_synchronized.rs");
-include!("WrappingSequenceNumber.adjust_comparison_for_wrap_around.rs");
 
 
-include!("InitialWindowSize.rs");
-include!("ParsedTcpSegment.rs");
-include!("ParsedSynCookie.rs");
 include!("ParsedTcpSegment.rs");
 include!("PayloadWriter.rs");
-include!("Statistics.rs");
 include!("State.rs");
 include!("Timestamping.rs");
 include!("TransmissionControlBlock.rs");
 include!("TransmissionControlBlockReceive.rs");
 include!("TransmissionControlBlockSend.rs");
 include!("Wind.rs");
-include!("WindowSize.rs");
-include!("WrappingSequenceNumber.rs");
-include!("WrappingTimestamp.rs");
 

@@ -2,9 +2,12 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
-#[derive(Debug)]
+/// The fixed (ie not varying in length) part of a TCP segment header.
+///
+/// Excludes any TCP options.
+#[derive(Debug, Clone)]
 #[repr(C, packed)]
-pub(crate) struct TcpFixedHeader
+pub struct TcpFixedHeader
 {
 	source_port_destination_port: SourcePortDestinationPort,
 	sequence_number: NetworkEndianU32,
@@ -21,8 +24,9 @@ pub(crate) struct TcpFixedHeader
 
 impl TcpFixedHeader
 {
+	/// Set necessary fields for sending in an outbound netwoek packet.
 	#[inline(always)]
-	pub(crate) fn set_for_send(&mut self, remote_port_local_port: RemotePortLocalPort, SEQ: WrappingSequenceNumber, ACK: WrappingSequenceNumber, padded_options_size: usize, flags: Flags, window_size: SegmentWindowSize)
+	pub fn set_for_send(&mut self, remote_port_local_port: RemotePortLocalPort, SEQ: WrappingSequenceNumber, ACK: WrappingSequenceNumber, padded_options_size: usize, flags: Flags, window_size: SegmentWindowSize)
 	{
 		self.source_port_destination_port = remote_port_local_port.for_send();
 		self.sequence_number = SEQ.into();
@@ -38,8 +42,9 @@ impl TcpFixedHeader
 		self.urgent_pointer_if_URG_flag_set = NetworkEndianU16::Zero;
 	}
 	
+	/// Cryptographically hash.
 	#[inline(always)]
-	pub(crate) fn secure_hash(&self, hasher: &mut impl Md5Digest)
+	pub fn secure_hash(&self, digester: &mut impl Digest)
 	{
 		digester.input(self.source_port_destination_port.source_port().bytes());
 		digester.input(self.source_port_destination_port.destination_port().bytes());
@@ -52,46 +57,53 @@ impl TcpFixedHeader
 		digester.input(self.urgent_pointer_if_URG_flag_set.bytes());
 	}
 	
+	/// Use this reference for a MD5 signature (clones).
 	#[inline(always)]
-	pub(crate) fn use_for_md5_signature(&self) -> Self
+	pub fn use_for_md5_signature(&self) -> Self
 	{
 		let mut clone = self.clone();
 		clone.checksum = NetworkEndianU16::Zero;
 		clone
 	}
 	
+	/// size, excluding options, as u8.
 	#[inline(always)]
-	pub(crate) const fn u8_size_excluding_options() -> u8
+	pub const fn u8_size_excluding_options() -> u8
 	{
 		size_of::<Self>() as u8
 	}
 	
+	/// size, excluding options, as u16.
 	#[inline(always)]
-	pub(crate) const fn u16_size_excluding_options() -> u16
+	pub const fn u16_size_excluding_options() -> u16
 	{
 		size_of::<Self>() as u16
 	}
 	
+	/// source port and destination port.
 	#[inline(always)]
-	pub(crate) fn source_port_destination_port(&self) -> SourcePortDestinationPort
+	pub fn source_port_destination_port(&self) -> SourcePortDestinationPort
 	{
 		self.source_port_destination_port
 	}
 	
+	/// SEQ.
 	#[inline(always)]
-	pub(crate) fn sequence_number(&self) -> WrappingSequenceNumber
+	pub fn sequence_number(&self) -> WrappingSequenceNumber
 	{
 		WrappingSequenceNumber::from(self.sequence_number)
 	}
 	
+	/// ACK.
 	#[inline(always)]
-	pub(crate) fn acknowledgment_sequence_number(&self) -> WrappingSequenceNumber
+	pub fn acknowledgment_sequence_number(&self) -> WrappingSequenceNumber
 	{
 		WrappingSequenceNumber::from(self.acknowledgment_sequence_number)
 	}
 	
+	/// Segment window size.
 	#[inline(always)]
-	pub(crate) fn window_size(&self) -> SegmentWindowSize
+	pub fn window_size(&self) -> SegmentWindowSize
 	{
 		SegmentWindowSize::from(self.window_size)
 	}

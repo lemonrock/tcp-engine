@@ -95,6 +95,7 @@ macro_rules! parse_selective_acknowledgment_block
 	}
 }
 
+#[macro_export]
 macro_rules! parse_options
 {
 	($interface: ident, $packet: ident, $smallest_acceptable_tcp_maximum_segment_size_option: ident, $options_data_pointer: ident, $options_data_length: ident, $all_flags: ident) =>

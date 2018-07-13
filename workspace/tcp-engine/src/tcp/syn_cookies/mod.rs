@@ -6,6 +6,7 @@ use super::*;
 
 
 include!("InitialSequenceNumberGenerator.rs");
+include!("ParsedSynCookie.rs");
 include!("SipHashKey.rs");
 include!("SortedCommonMaximumSegmentSizes.rs");
 include!("SortedCommonWindowScales.rs");

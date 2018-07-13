@@ -2,17 +2,16 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
-#[derive(Default, Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
-pub(crate) struct InitialWindowSize;
+/// Authentication Option.
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[repr(C, packed)]
+pub struct AuthenticationOption(pub Authentication);
 
-impl InitialWindowSize
+impl AuthenticationOption
 {
-	pub(crate) const Raw: NetworkEndianU16 = NetworkEndianU16::Maximum;
+	pub(crate) const Kind: u8 = 29;
 	
-	/// RFC 7323, Section 2.2: "The window field in a segment where the SYN bit is set (i.e., a <SYN> or <SYN,ACK>) MUST NOT be scaled".
-	pub(crate) const Segment: SegmentWindowSize = SegmentWindowSize::from_network_endian_u16(Self::Raw);
+	pub(crate) const Md5SignatureOptionKind: u8 = 19;
 	
-	pub(crate) const TrueWindow: WindowSize = WindowSize::new(65_535);
-	
-	pub(crate) const Shift: WindowScaleOption = WindowScaleOption::BufferSizeOf256Kb;
+	pub(crate) const Md5SignatureOptionKnownLength: usize = 18;
 }

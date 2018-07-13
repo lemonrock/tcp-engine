@@ -6,7 +6,7 @@
 ///
 /// Modelled on the states and their definitions in RFC 793, pages 21 - 22.
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
-pub(crate) enum State
+pub enum State
 {
 	/// RFC 793, Page 22: "Represents no connection state at all."
 	///
@@ -86,21 +86,23 @@ impl Default for State
 
 impl State
 {
+	/// Is synchronize sent?
 	#[inline(always)]
-	pub(crate) fn is_synchronize_sent(self) -> bool
+	pub fn is_synchronize_sent(self) -> bool
 	{
 		self == State::SynchronizeSent
 	}
 	
+	/// Is established?
 	#[inline(always)]
-	pub(crate) fn is_established(self) -> bool
+	pub fn is_established(self) -> bool
 	{
 		self == State::Established
 	}
 	
 	/// RFC 793 page 32.
 	#[inline(always)]
-	pub(crate) fn is_non_synchronized(&self) -> bool
+	pub fn is_non_synchronized(self) -> bool
 	{
 		use self::State::*;
 		
@@ -109,7 +111,7 @@ impl State
 	
 	/// RFC 793 page 32.
 	#[inline(always)]
-	pub(crate) fn is_synchronized(&self) -> bool
+	pub fn is_synchronized(self) -> bool
 	{
 		self >= State::Established
 	}

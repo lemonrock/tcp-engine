@@ -6,6 +6,7 @@
 #![allow(non_upper_case_globals)]
 #![deny(missing_docs)]
 #![feature(const_fn)]
+#![feature(core_intrinsics)]
 
 
 //! # tcp-engine-tcp-domain
@@ -13,14 +14,18 @@
 
 
 #[macro_use] extern crate bitflags;
+extern crate hyper_thread_random;
 extern crate tcp_engine_authentication;
 extern crate tcp_engine_check_sum;
 extern crate tcp_engine_internet_protocol;
+#[macro_use] extern crate tcp_engine_likely;
 extern crate tcp_engine_network_endian;
 extern crate tcp_engine_ports;
+extern crate tcp_engine_time;
 
 
 use self::tcp_options::*;
+use ::hyper_thread_random::generate_hyper_thread_safe_random_u32;
 use ::std::cmp::max;
 use ::std::cmp::min;
 use ::std::cmp::Ordering;
@@ -43,6 +48,7 @@ use ::tcp_engine_check_sum::Rfc1141CompliantCheckSum;
 use ::tcp_engine_internet_protocol::InternetProtocolAddress;
 use ::tcp_engine_network_endian::*;
 use ::tcp_engine_ports::*;
+use ::tcp_engine_time::*;
 
 
 /// TCP options.
@@ -52,14 +58,15 @@ use ::tcp_engine_ports::*;
 include!("WrappingSequenceNumber.adjust_comparison_for_wrap_around.rs");
 
 
-include!("CheckSumLayering.rs");
 include!("DataOffsetReservedBitsNonceSumFlag.rs");
 include!("Flags.rs");
 include!("InitialWindowSize.rs");
 include!("SegmentWindowSize.rs");
 include!("SelectiveAcknowledgmentBlock.rs");
+include!("State.rs");
 include!("TcpSegment.rs");
 include!("TcpFixedHeader.rs");
+include!("Timestamping.rs");
 include!("WindowSize.rs");
 include!("WrappingSequenceNumber.rs");
 include!("WrappingTimestamp.rs");

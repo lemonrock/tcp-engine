@@ -19,8 +19,11 @@ version = "0.0.0"
 
 [dependencies]
 bitflags = "^1.0"
+hyper-thread-random = "^0.4"
 tcp-engine-authentication = { path = "../tcp-engine-authentication", version = "0.0.0" }
 tcp-engine-check-sum = { path = "../tcp-engine-check-sum", version = "0.0.0" }
 tcp-engine-internet-protocol = { path = "../tcp-engine-internet-protocol", version = "0.0.0" }
+tcp-engine-likely = { path = "../tcp-engine-likely", version = "0.0.0" }
 tcp-engine-network-endian = { path = "../tcp-engine-network-endian", version = "0.0.0" }
 tcp-engine-ports = { path = "../tcp-engine-ports", version = "0.0.0" }
+tcp-engine-time = { path = "../tcp-engine-time", version = "0.0.0" }

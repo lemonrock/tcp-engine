@@ -40,8 +40,6 @@ include!("ParsedTcpSegment.validate_authentication_when_synchronized.rs");
 
 include!("ParsedTcpSegment.rs");
 include!("PayloadWriter.rs");
-include!("State.rs");
-include!("Timestamping.rs");
 include!("TransmissionControlBlock.rs");
 include!("TransmissionControlBlockReceive.rs");
 include!("TransmissionControlBlockSend.rs");

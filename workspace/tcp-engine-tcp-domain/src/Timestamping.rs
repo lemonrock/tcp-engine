@@ -2,8 +2,9 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
+/// Timestamping.
 #[derive(Debug)]
-pub(crate) struct Timestamping
+pub struct Timestamping
 {
 	our_offset: u32,
 	
@@ -18,7 +19,7 @@ pub(crate) struct Timestamping
 impl Timestamping
 {
 	/// RFC 7323, Section 5.3, Point R1: "SEG.TSval < TS.Recent".
-	pub(crate) fn is_TS_Recent_greater_than(&self, SEG_TSval: NetworkEndianU32) -> bool
+	pub fn is_TS_Recent_greater_than(&self, SEG_TSval: NetworkEndianU32) -> bool
 	{
 		WrappingTimestamp::from(SEG_TSval) < WrappingTimestamp::from(self.TS_Recent)
 	}
@@ -27,13 +28,14 @@ impl Timestamping
 	///
 	/// Since we do not, through our keep-alive logic, permit a connection to be idle for more than 24 days, TS.Recent will always be valid.
 	#[inline(always)]
-	pub(crate) fn is_TS_Recent_valid(&self) -> bool
+	pub fn is_TS_Recent_valid(&self) -> bool
 	{
 		true
 	}
 	
+	#[allow(missing_docs)]
 	#[inline(always)]
-	pub(crate) fn set_TS_Recent(&mut self, SEG_TSval: NetworkEndianU32)
+	pub fn set_TS_Recent(&mut self, SEG_TSval: NetworkEndianU32)
 	{
 		self.TS_Recent = SEG_TSval
 	}
@@ -41,7 +43,7 @@ impl Timestamping
 	/// RFC 7323, Section 4.3 (2): "If SEG.TSval >= TS.Recent and SEG.SEQ <= Last.ACK.sent then SEG.TSval is copied to TS.Recent; otherwise, it is ignored".
 	/// RFC 7323, Section 5.3, Point R3: "If an arriving segment satisfies SEG.TSval >= TS.Recent and SEG.SEQ <= Last.ACK.sent (see Section 4.3), then record its timestamp in TS.Recent.
 	#[inline(always)]
-	pub(crate) fn update_TS_Recent_if_appropriate(&mut self, SEG_TSval: NetworkEndianU32, SEG_SEQ: WrappingSequenceNumber)
+	pub fn update_TS_Recent_if_appropriate(&mut self, SEG_TSval: NetworkEndianU32, SEG_SEQ: WrappingSequenceNumber)
 	{
 		if WrappingTimestamp::from(SEG_TSval) >= WrappingTimestamp::from(self.TS_Recent) && SEG_SEQ <= self.Last_ACK_sent
 		{
@@ -49,14 +51,16 @@ impl Timestamping
 		}
 	}
 	
+	#[allow(missing_docs)]
 	#[inline(always)]
-	pub(crate) fn update_Last_ACK_sent(&mut self, Last_ACK_sent: WrappingSequenceNumber)
+	pub fn update_Last_ACK_sent(&mut self, Last_ACK_sent: WrappingSequenceNumber)
 	{
 		self.Last_ACK_sent = Last_ACK_sent;
 	}
 	
+	#[allow(missing_docs)]
 	#[inline(always)]
-	pub(crate) fn synflood_synchronize_acknowledgment_timestamps_option(now: MonotonicMillisecondTimestamp, their_timestamp_value: NetworkEndianU32) -> TimestampsOption
+	pub fn synflood_synchronize_acknowledgment_timestamps_option(now: MonotonicMillisecondTimestamp, their_timestamp_value: NetworkEndianU32) -> TimestampsOption
 	{
 		let TSval = Self::our_initial_timestamp(now);
 		
@@ -65,8 +69,9 @@ impl Timestamping
 		TimestampsOption::from_TSval_and_TSecr(TSval, TSecr)
 	}
 	
+	#[allow(missing_docs)]
 	#[inline(always)]
-	pub(crate) fn normal_timestamps_option(&self, now: MonotonicMillisecondTimestamp) -> TimestampsOption
+	pub fn normal_timestamps_option(&self, now: MonotonicMillisecondTimestamp) -> TimestampsOption
 	{
 		let TSval = self.our_subsequent_timestamp(now);
 		
@@ -76,22 +81,24 @@ impl Timestamping
 		TimestampsOption::from_TSval_and_TSecr(TSval, TSecr)
 	}
 	
+	#[allow(missing_docs)]
 	#[inline(always)]
-	pub(crate) fn new_for_closed_to_synchronize_sent() -> Option<Self>
+	pub fn new_for_closed_to_synchronize_sent() -> Option<Self>
 	{
 		Some
 		(
 			Self
 			{
 				our_offset: generate_hyper_thread_safe_random_u32(),
-				TS_Recent: MonotonicMillisecondTimestamp::Zero,
+				TS_Recent: NetworkEndianU32::Zero,
 				Last_ACK_sent: WrappingSequenceNumber::Zero,
 			}
 		)
 	}
 	
+	#[allow(missing_docs)]
 	#[inline(always)]
-	pub(crate) fn new_for_sychronize_received_to_established(tcp_options: &TcpOptions, now: MonotonicMillisecondTimestamp, RCV_NXT: WrappingSequenceNumber) -> Option<Self>
+	pub fn new_for_sychronize_received_to_established(tcp_options: &TcpOptions, now: MonotonicMillisecondTimestamp, RCV_NXT: WrappingSequenceNumber) -> Option<Self>
 	{
 		if let Some(timestamps) = tcp_options.timestamps.as_ref()
 		{
@@ -116,14 +123,15 @@ impl Timestamping
 		}
 	}
 	
+	#[allow(missing_docs)]
 	#[inline(always)]
-	pub(crate) fn measurement_of_round_trip_time(&self, now: MonotonicMillisecondTimestamp, TSecr: NetworkEndianU32) -> Option<MillisecondDuration>
+	pub fn measurement_of_round_trip_time(&self, now: MonotonicMillisecondTimestamp, TSecr: NetworkEndianU32) -> Option<MillisecondDuration>
 	{
 		let now_u32: u32 = now.into();
 		let real_time_stamp = WrappingTimestamp::from(TSecr.to_native_endian().wrapping_sub(self.our_offset));
 		let relative_difference = WrappingTimestamp::from(now_u32).relative_difference(real_time_stamp);
 		
-		if likely(relative_difference >= 0)
+		if likely!(relative_difference >= 0)
 		{
 			let round_trip_time = MillisecondDuration::from_milliseconds(relative_difference as u32 as u64);
 			Some(round_trip_time)

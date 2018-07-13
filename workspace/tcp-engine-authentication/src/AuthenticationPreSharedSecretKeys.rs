@@ -26,15 +26,17 @@ impl<Address: InternetProtocolAddress> AuthenticationPreSharedSecretKeys<Address
 		}
 	}
 	
+	/// Is authentication required for this connection?
 	#[inline(always)]
-	pub(crate) fn authentication_is_required(&self, remote_internet_protocol_address: &Address, local_port: NetworkEndianU16) -> bool
+	pub fn authentication_is_required(&self, remote_internet_protocol_address: &Address, local_port: NetworkEndianU16) -> bool
 	{
-		self.md5.contains(Md5AuthenticationConnectionIdentifier::new(*remote_internet_protocol_address, local_port))
+		self.md5.contains_key(&Md5AuthenticationConnectionIdentifier::new(*remote_internet_protocol_address, local_port))
 	}
 	
+	/// Find a MD5 authentication key.
 	#[inline(always)]
-	pub(crate) fn find_md5_authentication_key(&self, remote_internet_protocol_address: &Address, local_port: NetworkEndianU16) -> Option<Rc<Md5PreSharedSecretKey>>
+	pub fn find_md5_authentication_key(&self, remote_internet_protocol_address: &Address, local_port: NetworkEndianU16) -> Option<Rc<Md5PreSharedSecretKey>>
 	{
-		self.md5.get(Md5AuthenticationConnectionIdentifier::new(*remote_internet_protocol_address, local_port)).map(|key| key.clone())
+		self.md5.get(&Md5AuthenticationConnectionIdentifier::new(*remote_internet_protocol_address, local_port)).map(|key| key.clone())
 	}
 }

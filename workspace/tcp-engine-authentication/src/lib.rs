@@ -20,13 +20,16 @@ extern crate tcp_engine_internet_protocol;
 
 use ::arrayvec::ArrayVec;
 use ::md5::Md5;
+use ::std::collections::HashMap;
 use ::std::ptr::NonNull;
+use ::std::rc::Rc;
 use ::tcp_engine_check_sum::Digest;
 use ::tcp_engine_check_sum::Layer4ProtocolNumber;
 use ::tcp_engine_network_endian::*;
 use ::tcp_engine_internet_protocol::InternetProtocolAddress;
 
 
+include!("AuthenticationPreSharedSecretKeys.rs");
 include!("Md5AuthenticationConnectionIdentifier.rs");
 include!("Md5PreSharedSecretKey.rs");
 include!("TcpSegmentWithAuthenticationData.rs");

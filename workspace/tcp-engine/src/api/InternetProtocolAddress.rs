@@ -114,17 +114,158 @@ pub trait InternetProtocolAddress: NetworkEndian
 	
 	#[doc(hidden)]
 	#[inline(always)]
-	fn write_to_hash<H: Hasher>(&self, hasher: &mut H);
-	
-	#[doc(hidden)]
-	type PseudoHeader: Sized;
-	
-	#[doc(hidden)]
-	#[inline(always)]
-	fn pseudo_header(source_internet_protocol_address: &Self, destination_internet_protocol_address: &Self, layer_4_protocol_number: u8, layer_4_packet_size: usize) -> Self::PseudoHeader;
-	
-	#[doc(hidden)]
-	#[inline(always)]
 	fn secure_hash(digester: &mut impl Md5Digest, source_internet_protocol_address: &Self, destination_internet_protocol_address: &Self, layer_4_protocol_number: u8, layer_4_packet_size: usize);
 }
 
+impl InternetProtocolAddress for NetworkEndianU32
+{
+	const MinimumPathMaximumTransmissionUnitSize: u16 = 68;
+	
+	#[cfg(feature = "rfc-4821-minimum-ipv4-path-mtu")] const DefaultPathMaximumTransmissionUnitSize: u16 = 1024;
+	#[cfg(not(feature = "rfc-4821-minimum-ipv4-path-mtu"))] const DefaultPathMaximumTransmissionUnitSize: u16 = 576;
+	
+	#[cfg(feature = "increase-ipv4-mss-acceptable-minimum-to-1024")] const SmallestAcceptableMaximumSegmentSizeOption: MaximumSegmentSizeOption = MaximumSegmentSizeOption::InternetProtocolVersion4MinimumAsPerRfc4821;
+	#[cfg(not(feature = "increase-ipv6-mss-acceptable-minimum-to-1024"))] const SmallestAcceptableMaximumSegmentSizeOption: MaximumSegmentSizeOption = MaximumSegmentSizeOption::InternetProtocolVersion4Minimum;
+	
+	const DefaultMaximumSegmentSizeOptionIfNoneSpecified: MaximumSegmentSizeOption = Self::SmallestAcceptableMaximumSegmentSizeOption;
+	
+	const SmallestLayer3HeaderSize: u16 = 20;
+	
+	const AddressLength: usize = 4;
+	
+	const OffsetOfAddressInsideInternetProtocolPacket: usize = 12;
+	
+	#[inline(always)]
+	fn explicit_congestion_notification(start_of_layer_3_packet: NonNull<u8>) -> ExplicitCongestionNotification
+	{
+		const Offset: isize = 1;
+		
+		let traffic_class = unsafe { *start_of_layer_3_packet.as_ptr().offset(1) };
+		
+		unsafe { transmute(traffic_class & 0b11) }
+	}
+	
+	#[inline(always)]
+	fn sorted_common_maximum_segment_sizes() -> &'static [u16]
+	{
+		// Values are chosen based on research done in the paper "An Analysis of TCP Maximum Segment Sizes", Shane Alcock and Richard Nelson, 2011.
+		// Table is from FreeBSD.
+		&[
+			// 0∙2%
+			216,
+
+			// 0∙3%
+			536,
+
+			// 5%
+			1200,
+
+			// 7%
+			1360,
+
+			// 7%
+			1400,
+
+			// 20%
+			1440,
+
+			// 15%
+			1452,
+
+			// 45%
+			1460,
+		]
+		// An alternative table from Linux, based on the same research paper.
+		//&[
+		//	// Values lower than 536 are rare (< 0∙2%)
+		//	536,
+		//
+		//	// Values in the range 537 - 1299 inclusive account for < 1∙5% of observations.
+		//	1300,
+		//
+		//	// Values in the range 1300 - 1349 inclusive account for between 15% to 20% of observations.
+		//	// Most of these values are probably due to the use of PPPoE.
+		//	1440,
+		//
+		//	// The most common value, between 30% - 46% of all connections. Values in excess of this are very rare (< 0∙04%)
+		//	1460,
+		//]
+	}
+	
+	#[inline(always)]
+	fn calculate_internet_protocol_tcp_check_sum(source_internet_protocol_address: &Self, destination_internet_protocol_address: &Self, internet_packet_payload_pointer: NonNull<u8>, layer_4_packet_size: usize) -> Rfc1141CompliantCheckSum
+	{
+		Rfc1141CompliantCheckSum::internet_protocol_version_4_tcp_check_sum(source_internet_protocol_address, destination_internet_protocol_address, internet_packet_payload_pointer, layer_4_packet_size)
+	}
+	
+	#[inline(always)]
+	fn secure_hash(digester: &mut impl Md5Digest, source_internet_protocol_address: &Self, destination_internet_protocol_address: &Self, layer_4_protocol_number: u8, layer_4_packet_size: usize)
+	{
+		InternetProtocolVersion4PseudoHeader::secure_hash(digester, source_internet_protocol_address, destination_internet_protocol_address, layer_4_protocol_number, layer_4_packet_size as u16)
+	}
+}
+
+impl InternetProtocolAddress for NetworkEndianU128
+{
+	const MinimumPathMaximumTransmissionUnitSize: u16 = 1280;
+	
+	const DefaultPathMaximumTransmissionUnitSize: u16 = Self::MinimumPathMaximumTransmissionUnitSize;
+	
+	#[cfg(feature = "increase-ipv6-mss-acceptable-minimum-to-1220")] const SmallestAcceptableMaximumSegmentSizeOption: MaximumSegmentSizeOption = MaximumSegmentSizeOption::InternetProtocolVersion6Minimum;
+	#[cfg(not(feature = "increase-ipv6-mss-acceptable-minimum-to-1220"))] const SmallestAcceptableMaximumSegmentSizeOption: MaximumSegmentSizeOption = MaximumSegmentSizeOption::Default;
+	
+	const DefaultMaximumSegmentSizeOptionIfNoneSpecified: MaximumSegmentSizeOption = Self::SmallestAcceptableMaximumSegmentSizeOption;
+	
+	const SmallestLayer3HeaderSize: u16 = 40;
+	
+	const AddressLength: usize = 16;
+	
+	const OffsetOfAddressInsideInternetProtocolPacket: usize = 8;
+	
+	#[inline(always)]
+	fn explicit_congestion_notification(start_of_layer_3_packet: NonNull<u8>) -> ExplicitCongestionNotification
+	{
+		const TrafficClassBits: u32 = 20;
+		const TrafficClassMask: u32 = 0b1111_1111 << TrafficClassBits;
+		
+		let version_traffic_class_flow_label = u32::from_be(unsafe { *(start_of_layer_3_packet.as_ptr() as *mut u32) });
+		let traffic_class = ((version_traffic_class_flow_label & TrafficClassMask) >> TrafficClassBits) as u8;
+		
+		unsafe { transmute(traffic_class & 0b11) }
+	}
+	
+	#[inline(always)]
+	fn sorted_common_maximum_segment_sizes() -> &'static [u16]
+	{
+		const SmallestTcpHeader: u16 = size_of::<TcpFixedHeader>() as u16;
+		
+		const MaximumTransmissionUnitToTcpMaximumSegmentSizeReduction: u16 = Self::SmallestLayer3HeaderSize + SmallestTcpHeader;
+		
+		
+		// Values are chosen based on RFC 2460, Section 8.3:
+		//
+		// "MSS must be computed as the maximum packet size minus 60".
+		//
+		// Since the minimum MTU is 1280, the smallest possible MSS is 1220.
+		//
+		// Remaining values guess-timated.
+		&[
+			Self::DefaultPathMaximumTransmissionUnitSize - MaximumTransmissionUnitToTcpMaximumSegmentSizeReduction,
+			1480 - MaximumTransmissionUnitToTcpMaximumSegmentSizeReduction,
+			1500 - MaximumTransmissionUnitToTcpMaximumSegmentSizeReduction,
+			9000 - MaximumTransmissionUnitToTcpMaximumSegmentSizeReduction,
+		]
+	}
+	
+	#[inline(always)]
+	fn calculate_internet_protocol_tcp_check_sum(source_internet_protocol_address: &Self, destination_internet_protocol_address: &Self, internet_packet_payload_pointer: NonNull<u8>, layer_4_packet_size: usize) -> Rfc1141CompliantCheckSum
+	{
+		Rfc1141CompliantCheckSum::internet_protocol_version_6_tcp_check_sum(source_internet_protocol_address, destination_internet_protocol_address, internet_packet_payload_pointer, layer_4_packet_size)
+	}
+	
+	#[inline(always)]
+	fn secure_hash(digester: &mut impl Md5Digest, source_internet_protocol_address: &Self, destination_internet_protocol_address: &Self, layer_4_protocol_number: u8, layer_4_packet_size: usize)
+	{
+		InternetProtocolVersion6PseudoHeader::secure_hash(digester, source_internet_protocol_address, destination_internet_protocol_address, layer_4_protocol_number, layer_4_packet_size as u32)
+	}
+}

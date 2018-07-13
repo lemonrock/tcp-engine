@@ -6,10 +6,6 @@
 #[cfg(feature = "dpdk-sys")] pub mod dpdk;
 
 
-/// Internet Protocol Address implementations.
-pub mod network_endian;
-
-
 /// TCP API.
 pub mod tcp;
 

@@ -26,7 +26,7 @@ impl<Address: InternetProtocolAddress> TransmissionControlBlockKey<Address>
 	{
 		Self
 		{
-			ports: Ports::from_incoming_segment(SEG),
+			ports: Ports::from_incoming_segment(SEG.source_port_destination_port()),
 			remote_internet_protocol_address: source_internet_protocol_address.clone(),
 		}
 	}

@@ -2,7 +2,8 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
-#[derive(Default, Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+/// Valid combinations of remote and local ports using port bit sets.
+#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct PortCombinationValidity
 {
 	valid_remote_ports: PortBitSet,
@@ -24,8 +25,9 @@ impl Default for PortCombinationValidity
 
 impl PortCombinationValidity
 {
+	/// Is this port combination invalid?
 	#[inline(always)]
-	pub(crate) fn port_combination_is_invalid(&self, incoming_segment_source_port_destination_port: SourcePortDestinationPort) -> bool
+	pub fn port_combination_is_invalid(&self, incoming_segment_source_port_destination_port: SourcePortDestinationPort) -> bool
 	{
 		let (remote_port, local_port) = incoming_segment_source_port_destination_port.remote_port_local_port().to_tuple();
 		self.valid_remote_ports.does_not_contain(remote_port) || self.valid_local_ports.does_not_contain(local_port)

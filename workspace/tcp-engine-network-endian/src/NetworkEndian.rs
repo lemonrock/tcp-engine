@@ -2,10 +2,14 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
-use super::*;
-
-
-include!("NetworkEndian.rs");
-include!("NetworkEndianU16.rs");
-include!("NetworkEndianU32.rs");
-include!("NetworkEndianU128.rs");
+/// Abstract network endian data.
+pub trait NetworkEndian: Sized + Default + Debug + Copy + Clone + PartialOrd + Ord + PartialEq + Eq + Hash + Display
+{
+	/// Underlying bytes.
+	#[inline(always)]
+	fn bytes(&self) -> &[u8];
+	
+	/// Writes to a hasher creating a hash.
+	#[inline(always)]
+	fn write_to_hash<H: Hasher>(&self, hasher: &mut H);
+}

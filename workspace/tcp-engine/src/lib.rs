@@ -50,9 +50,6 @@ use self::time::*;
 pub mod api;
 
 
-pub(crate) mod collections;
-
-
 /// Check sums.
 pub mod check_sums;
 

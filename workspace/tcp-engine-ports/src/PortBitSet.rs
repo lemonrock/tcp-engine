@@ -5,8 +5,17 @@
 /// Maximum number of ports: 2^16 = 65536.
 ///
 /// Maximum number of u64: 65536 / 64 = 1024.
-#[derive(Clone)]
+#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct PortBitSet([u64; PortBitSet::NumberOfElements]);
+
+impl Default for PortBitSet
+{
+	#[inline(always)]
+	fn default() -> Self
+	{
+		Self::empty()
+	}
+}
 
 impl PortBitSet
 {
@@ -29,7 +38,7 @@ impl PortBitSet
 	
 	/// Creates an instance with all ports bar those configured to be ignored (configuration features "server-drop-source-port-0", "server-drop-source-ports-1-1023" and "server-drop-source-ports-experimental-rfc-4727" (ports 1021 and 1022)).
 	#[inline(always)]
-	pub(crate) fn full_except_for_configured_remote_ports_to_drop() -> Self
+	pub fn full_except_for_configured_remote_ports_to_drop() -> Self
 	{
 		let mut this = unsafe
 		{
@@ -65,15 +74,16 @@ impl PortBitSet
 	
 	/// RFC 6056: Section 3.2: "... ephemeral port selection algorithms should use the whole range 1024-65535".
 	#[inline(always)]
-	pub(crate) fn new_with_rfc_6056_ephemeral_ports_available() -> Self
+	pub fn new_with_rfc_6056_ephemeral_ports_available() -> Self
 	{
-		let mut this = Self::new();
+		let mut this = Self::empty();
 		unsafe { (this.0.get_unchecked_mut(0) as *mut _ as *mut u64).write_bytes(0xFF, 1024 / Self::BytesPerElement) };
 		this
 	}
 	
+	/// Finds an unused port suitable for a local (source) port for an outbound connection, using a secure random function.
 	#[inline(always)]
-	pub(crate) fn find_unused_securely_randomly(&self, inclusive_minimum_hint: u16) -> Option<u16>
+	pub fn find_unused_securely_randomly(&self, inclusive_minimum_hint: u16) -> Option<u16>
 	{
 		// generate a random number between 0 and 65535; iterate with wrap-around until found.
 		let random_initial_port_number = generate_hyper_thread_safe_random_u16();
@@ -92,7 +102,7 @@ impl PortBitSet
 		{
 			if self.does_not_contain(port_number)
 			{
-				Some(port_number)
+				return Some(port_number)
 			}
 			
 			if port_number == ::std::u16::MAX
@@ -108,10 +118,12 @@ impl PortBitSet
 		}
 		{
 		}
+		None
 	}
 	
+	/// Creates the union of this set with another set.
 	#[inline(always)]
-	pub(crate) fn union(&self, other: &self) -> Self
+	pub fn union(&self, other: &Self) -> Self
 	{
 		let mut this: Self = unsafe { uninitialized() };
 		
@@ -119,7 +131,7 @@ impl PortBitSet
 		{
 			unsafe
 			{
-				*this.0.get_unchecked_mut(index) = set.0.get_unchecked(index) | other.0.get_unchecked(index)
+				*this.0.get_unchecked_mut(index) = self.0.get_unchecked(index) | other.0.get_unchecked(index)
 			}
 		}
 		

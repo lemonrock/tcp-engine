@@ -10,18 +10,18 @@ pub struct NetworkEndianU16([u8; 2]);
 impl PartialOrd for NetworkEndianU16
 {
 	#[inline(always)]
-	fn partial_cmp(&self, other: &Rhs) -> Option<Ordering>
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering>
 	{
-		u16::from_be(u16::from_bytes(self.0)).partial_cmp(u16::from_be(u16::from_bytes(other.0)))
+		u16::from_be(u16::from_bytes(self.0)).partial_cmp(&u16::from_be(u16::from_bytes(other.0)))
 	}
 }
 
 impl Ord for NetworkEndianU16
 {
 	#[inline(always)]
-	fn cmp(&self, other: &Rhs) -> Ordering
+	fn cmp(&self, other: &Self) -> Ordering
 	{
-		u16::from_be(u16::from_bytes(self.0)).cmp(u16::from_be(u16::from_bytes(other.0)))
+		u16::from_be(u16::from_bytes(self.0)).cmp(&u16::from_be(u16::from_bytes(other.0)))
 	}
 }
 
@@ -32,36 +32,49 @@ impl NetworkEndian for NetworkEndianU16
 	{
 		&self.0[..]
 	}
+	
+	#[inline(always)]
+	fn write_to_hash<H: Hasher>(&self, hasher: &mut H)
+	{
+		hasher.write_u16(unsafe { transmute_copy(&self.0) })
+	}
+}
+
+impl Display for NetworkEndianU16
+{
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result
+	{
+		write!(f, "{}", self.to_native_endian())
+	}
 }
 
 impl NetworkEndianU16
 {
-	pub(crate) const Zero: Self = NetworkEndianU16([0, 0]);
+	/// Zero.
+	pub const Zero: Self = NetworkEndianU16([0, 0]);
 	
-	pub(crate) const Maximum: Self = NetworkEndianU16([0xFF, 0xFF]);
+	/// Maximum.
+	pub const Maximum: Self = NetworkEndianU16([0xFF, 0xFF]);
 	
+	/// From network endian.
 	#[inline(always)]
-	pub(crate) const fn from_network_endian(network_endian: [u8; 2]) -> Self
+	pub const fn from_network_endian(network_endian: [u8; 2]) -> Self
 	{
 		NetworkEndianU16(network_endian)
 	}
 	
+	/// To native endian.
 	#[inline(always)]
-	pub(crate) fn to_native_endian(self) -> u16
+	pub fn to_native_endian(self) -> u16
 	{
 		u16::from_be(self.big_endian_from_bytes())
 	}
 	
+	/// From native endian.
 	#[inline(always)]
 	pub fn from_native_endian(native_endian: u16) -> Self
 	{
 		NetworkEndianU16(native_endian.to_be().to_bytes())
-	}
-	
-	#[inline(always)]
-	pub(crate) fn is_not_zero(self) -> bool
-	{
-		self.big_endian_from_bytes() != 0
 	}
 	
 	#[inline(always)]

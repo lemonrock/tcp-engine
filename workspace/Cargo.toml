@@ -7,5 +7,7 @@ members = [
     "tcp-engine",
     "tcp-engine-collections",
     "tcp-engine-likely",
+    "tcp-engine-network-endian",
+    "tcp-engine-ports",
     "tcp-engine-time",
 ]

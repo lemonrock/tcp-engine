@@ -2,7 +2,10 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/tcp-engine.iml" filepath="$PROJECT_DIR$/tcp-engine.iml" />
+      <module fileurl="file://$PROJECT_DIR$/workspace/tcp-engine/tcp-engine.iml" filepath="$PROJECT_DIR$/workspace/tcp-engine/tcp-engine.iml" />
+      <module fileurl="file://$PROJECT_DIR$/workspace/tcp-engine-collections/tcp-engine-collections.iml" filepath="$PROJECT_DIR$/workspace/tcp-engine-collections/tcp-engine-collections.iml" />
+      <module fileurl="file://$PROJECT_DIR$/workspace/tcp-engine-likely/tcp-engine-likely.iml" filepath="$PROJECT_DIR$/workspace/tcp-engine-likely/tcp-engine-likely.iml" />
+      <module fileurl="file://$PROJECT_DIR$/workspace/tcp-engine-time/tcp-engine-time.iml" filepath="$PROJECT_DIR$/workspace/tcp-engine-time/tcp-engine-time.iml" />
     </modules>
   </component>
 </project>

@@ -54,7 +54,7 @@ The license for this project is AGPL3.
 * After 11 retransmissions (ie we have sent 12 transmissions) have been sent of the same segment, we drop the connection without sending a reset;
 * Retransmissions and Zero-Window probes after the 8th are no-longer backed off
 * Retransmissions during the SYN_SENT state have a different back-off profile to the norm (but match FreeBSD).
-* Minimum retransmission time-out, and initial retransmission time-out is 128ms, not 1sec.
+* Minimum retransmission time-out, and initial retransmission api.time-out is 128ms, not 1sec.
 * Maximum retransmission time-out is just over 65 seconds (512 x 128ms).
 * Zero-window probe times match retransmission time-outs.
 
@@ -62,6 +62,11 @@ The license for this project is AGPL3.
 ## Performance
 
 * A recent connections cache is used to record congestion-control data to make new connections more efficient, using the principle of "yesterday's weather".
+* A timer wheel is used to optimize alarms and timers
+* "magic" (also known as virtual) ring buffers are used to avoid memory copies.
+    * When using DPDK
+        * Efficient use of these requires DPDK to use the IOVA mode (`rte_iova_mode::RTE_IOVA_VA`); this can only happen if the `uio`, `igb_uio` and `kni` kernel modules are *NOT* used as PCI drivers for network cards, and the `vfio-pci` driver is used instead.
+        * This also has the benefit of letting DPDK use its 'dynamic' memory mode and avoid physical addresses (which effectively require root to be useful).
 
 
 ## Limitations
@@ -88,6 +93,7 @@ The license for this project is AGPL3.
 * RFC 6528 Defending against Sequence Number Attacks
 * RFC 6335 (BCP 165) Internet Assigned Numbers Authority (IANA) Procedures for the Management of the Service Name and Transport Protocol Port Number Registry
 * RFC 6298 Computing TCP's Retransmission Timer
+* RFC 6429 TCP Sender Clarification for Persist Condition
 * RFC 6247 Moving the Undeployed TCP Extensions RFC 1072, RFC 1106, RFC 1110, RFC 1145, RFC 1146, RFC 1379, RFC 1644, and RFC 1693 to Historic Status
 * RFC 6093 On the Implementation of the TCP Urgent Mechanism
 * RFC 6056 (BCP 156) Recommendations for Transport-Protocol Port Randomization
@@ -97,9 +103,11 @@ The license for this project is AGPL3.
 * RFC 4987 TCP SYN Flooding Attacks and Common Mitigations
 * RFC 4821 Packetization Layer Path MTU Discovery
 * RFC 3465 TCP Congestion Control with Appropriate Byte Counting (ABC)
+* RFC 3449 (BCP 69) TCP Performance Implications of Network Path Asymmetry
 * RFC 3390 Increasing TCP's Initial Window
 * RFC 3360 Inappropriate TCP Resets Considered Harmful
 * RFC 3168 The Addition of Explicit Congestion Notification (ECN) to IP
+* RFC 2923 TCP Problems with Path MTU Discovery
 * RFC 2884 Performance Evaluation of Explicit Congestion Notification (ECN) in IP Networks
 * RFC 2873 TCP Processing of the IPv4 Precedence Field
 * RFC 2460 Internet Protocol, Version 6 (IPv6) Specification
@@ -148,11 +156,12 @@ ICMP messages are explicitly not supported. In the internet at large, they are o
 * RFC 6298 Section 5.7: We choose to use 3 × 128 milliseconds rather than 3 seconds.
 * RFC 6298 Section 2.4: We choose a default minimum of 128 milliseconds rather than one second.
 * RFC 6298 Section 2.1: We use an initial minimum of 128 milliseconds OR the most recently cached value if available.
+* RFC 6298 Section 5 (5.5): We use a set of back off scalars which do not always cause doubling when retransmitting SYN segments.
 * RFC 6093: We blackhole any segments with an `URG` flag bit set.
 * RFC 5961 Section 3.2 Page 8: We do not send a 'Challenge ACK' when in the `LISTEN` or `SYN-RECEIVED` state, as to do so may reveal that a syncookie we sent as an initial challenge is **invalid**.
 * RFC 5961: We do not implement rate limiting of 'Challenge ACK's as this can be exploited as a side-channel.
 * RFC 4821: We take the advice given and additionally enforce a lowest advertised MSS option of 984 for IPv4 and 1220 for IPv6. In the absence of an MSS option, we force the default MSS to these values rather than 536.
-* RFC 3360 Section 2.1: We foricbly validate that the reserved field is zero. This seems to be consistent with RFC 4727 Section 7.2: "There are not enough reserved bits to allocate any for experimentation".
+* RFC 3360 Section 2.1: We forcibly validate that the reserved field is zero. This seems to be consistent with RFC 4727 Section 7.2: "There are not enough reserved bits to allocate any for experimentation".
 * RFC 2675: IPv6 Jumbograms are not supported.
 * RFC 1122: We do not support ICMP messages.
 * RFC 793: URG and the urgent pointer are not appropriate in the modern internet and are considered threats.
@@ -355,13 +364,11 @@ Traversal Using Relays around NAT (TURN) Extensions for TCP Allocations
 
 
 
-RFC 5461
-TCP's Reaction to Soft Errors
+RFC 5461 TCP's Reaction to Soft Errors
 Uses ICMP so probably should document
 
 BCP 142
-RFC 5382
-NAT Behavioral Requirements for TCP (updated by RFC 7857)
+RFC 5382 (BCP 142) NAT Behavioral Requirements for TCP (updated by RFC 7857)
 
 
 RFC 4953 Defending TCP Against Spoofing Attacks
@@ -385,16 +392,14 @@ RFC 6349 Framework for TCP Throughput Testing (useful information).
     * Obsoletes RFC 3517
 
 
-RFC 2923 TCP Problems with Path MTU Discovery
+
+
 
 RFC 2760 Ongoing TCP Research Related to Satellites
 RFC 2488 (BCP 28) Enhancing TCP Over Satellite Channels using Standard Mechanisms
 RFC 2757 Long Thin Networks
-RFC 3449 (BCP 69) TCP Performance Implications of Network Path Asymmetry
 
-RFC 2553 Basic Socket Interface Extensions for IPv6
 
-RFC 6429 TCP Sender Clarification for Persist Condition
 RFC 2525 Known TCP Implementation Problems
 RFC 1180 TCP/IP tutorial
 

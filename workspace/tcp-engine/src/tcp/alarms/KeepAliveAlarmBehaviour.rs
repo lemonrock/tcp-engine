@@ -38,7 +38,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> AlarmBehaviour<TCBA> for KeepAl
 			}
 			else
 			{
-				if unlikely(interface.send_keep_alive_probe_without_packet_to_reuse(transmission_control_block, now.into()).is_err())
+				if unlikely!(interface.send_keep_alive_probe_without_packet_to_reuse(transmission_control_block, now.into()).is_err())
 				{
 					transmission_control_block.abort(interface, now.to_milliseconds());
 					return None

@@ -37,7 +37,7 @@ impl CachedCongestionData
 	};
 	
 	#[inline(always)]
-	pub(crate) fn new(&self, smoothed_round_trip_time: MillisecondDuration, round_trip_time_variance: MillisecondDuration, ssthresh: u32) -> RetransmissionTimeOut
+	pub(crate) fn new(&self, smoothed_round_trip_time: MillisecondDuration, round_trip_time_variance: MillisecondDuration, ssthresh: u32) -> CachedCongestionData
 	{
 		Self
 		{

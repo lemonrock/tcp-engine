@@ -82,7 +82,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 			maximum_segment_size_to_send_to_remote: maximum_segment_size,
 			selective_acknowledgments_permitted: false,
 			md5_authentication_key,
-			congestion_control: CongestionControl::new(Self::InitialCongestionWindowAlgorithm, MonotonicMillisecondDuration::Zero, CongestionControl::calculate_sender_maximum_segment_size_in_non_synchronized_state(maximum_segment_size, true, md5_authentication_key.is_some(), true, true, true), &cached_congestion_data),
+			congestion_control: CongestionControl::new(Self::InitialCongestionWindowAlgorithm, MonotonicMillisecondDuration::Zero, maximum_segment_size, &cached_congestion_data),
 		}
 	}
 	
@@ -143,7 +143,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 			maximum_segment_size_to_send_to_remote: maximum_segment_size,
 			selective_acknowledgments_permitted,
 			md5_authentication_key,
-			congestion_control: CongestionControl::new(Self::InitialCongestionWindowAlgorithm, now, CongestionControl::calculate_sender_maximum_segment_size_in_synchronized_state(maximum_segment_size, supports_timestamping, md5_authentication_key.is_some(), selective_acknowledgments_permitted), &cached_congestion_data),
+			congestion_control: CongestionControl::new(Self::InitialCongestionWindowAlgorithm, now, maximum_segment_size, &cached_congestion_data),
 		}
 	}
 	
@@ -212,7 +212,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 		{
 			if self.send_window_is_zero()
 			{
-				if unlikely(self.send_zero_window_probe_returning_true_if_failed(interface, now, true))
+				if unlikely!(self.send_zero_window_probe_returning_true_if_failed(interface, now, true))
 				{
 					return true;
 				}
@@ -357,7 +357,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 {
 	#[inline(always)]
-	pub(crate) fn maximum_segment_size_to_send_to_remote<TCBA: TransmissionControlBlockAbstractions>(their_maximum_segment_size_options: Option<MaximumSegmentSizeOption>, interface: &Interface<TCBA>, remote_internet_protocol_address: &TCBA::Address)
+	pub(crate) fn maximum_segment_size_to_send_to_remote<TCBA: TransmissionControlBlockAbstractions>(their_maximum_segment_size_options: Option<MaximumSegmentSizeOption>, interface: &Interface<TCBA>, remote_internet_protocol_address: &TCBA::Address) -> u16
 	{
 		let maximum_segment_size_option = match their_maximum_segment_size_options
 		{
@@ -370,7 +370,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	}
 	
 	#[inline(always)]
-	fn maximum_segment_size_to_send_to_remote_u16<TCBA: TransmissionControlBlockAbstractions>(their_maximum_segment_size: u16, interface: &Interface<TCBA>, remote_internet_protocol_address: &TCBA::Address)
+	fn maximum_segment_size_to_send_to_remote_u16<TCBA: TransmissionControlBlockAbstractions>(their_maximum_segment_size: u16, interface: &Interface<TCBA>, remote_internet_protocol_address: &TCBA::Address) -> u16
 	{
 		min(their_maximum_segment_size, interface.our_current_maximum_segment_size_without_fragmentation(remote_internet_protocol_address))
 	}
@@ -559,12 +559,6 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	pub(crate) fn increment_duplicate_acknowledgments_received_without_any_intervening_acknwoledgments_which_moved_SND_UNA(&mut self)
 	{
 		self.congestion_control.increment_duplicate_acknowledgments_received_without_any_intervening_acknwoledgments_which_moved_SND_UNA()
-	}
-	
-	#[inline(always)]
-	fn recalculate_sender_maximum_segment_size_when_entering_established_state(&mut self)
-	{
-		self.congestion_control.recalculate_sender_maximum_segment_size_when_entering_established_state(self.maximum_segment_size_to_send_to_remote, self.timestamping.is_some(), self.md5_authentication_key.is_some(), self.selective_acknowledgments_permitted)
 	}
 	
 	#[inline(always)]
@@ -768,7 +762,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 		
 		increment_retransmissions!(self, interface, now);
 		
-		if unlikely(self.send_zero_window_probe_returning_true_if_failed(interface, now, false))
+		if unlikely!(self.send_zero_window_probe_returning_true_if_failed(interface, now, false))
 		{
 			return None
 		}
@@ -820,7 +814,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	#[inline(always)]
 	fn send_zero_window_probe_returning_true_if_failed(&mut self, interface: &Interface<TCBA>, now: MonotonicMillisecondTimestamp, is_transmission_not_retransmission: bool) -> bool
 	{
-		if unlikely(interface.send_zero_window_probe(self, now).is_err())
+		if unlikely!(interface.send_zero_window_probe(self, now).is_err())
 		{
 			self.aborted(interface, now);
 			true
@@ -995,7 +989,6 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	pub(crate) fn enter_state_established(&mut self)
 	{
 		self.retransmission_time_out_entering_established_state();
-		self.recalculate_sender_maximum_segment_size_when_entering_established_state();
 		self.set_state(State::Established);
 		self.events_receiver.entered_state_established();
 	}

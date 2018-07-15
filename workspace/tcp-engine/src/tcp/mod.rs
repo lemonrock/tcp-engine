@@ -18,9 +18,6 @@ pub(crate) mod alarms;
 pub(crate) mod congestion_control;
 
 
-pub(crate) mod syn_cookies;
-
-
 include!("ParsedTcpSegment.increment_statistic.rs");
 include!("ParsedTcpSegment.invalid.rs");
 include!("ParsedTcpSegment.processing_incoming_segments_4_1_check_sequence_number.rs");

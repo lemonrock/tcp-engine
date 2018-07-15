@@ -30,11 +30,6 @@ pub(crate) struct CongestionControl
 	//
 	// This changes after the initial SYN has been sent, as the value reflects the use of options.
 	sender_maximum_segment_size: u16,
-	
-//	snd_recover: WrappingSequenceNumber,
-//	congestion_recovery: CongestionRecovery,
-//	TF_WASFRECOVERY: bool, // was in NewReno Fast Recovery
-//	TF_WASCRECOVERY: bool, // was in congestion recovery
 }
 
 impl CongestionControl
@@ -205,70 +200,6 @@ impl CongestionControl
 	pub(crate) fn reset_congestion_window_to_loss_window_because_retransmission_timed_out(&mut self, explicit_congestion_notification_state: Option<&mut ExplicitCongestionNotificationState>)
 	{
 		self.reset_congestion_window_to_loss_window(explicit_congestion_notification_state);
-	}
-	
-	#[inline(always)]
-	pub(crate) fn recalculate_sender_maximum_segment_size_when_entering_established_state(&mut self, negotiated_maximum_segment_size: u16, timestamps_in_use: bool, md5_signatures_in_use: bool, selective_acknowledgments_in_use: bool)
-	{
-		self.sender_maximum_segment_size = Self::calculate_sender_maximum_segment_size_in_synchronized_state(negotiated_maximum_segment_size, timestamps_in_use, md5_signatures_in_use, selective_acknowledgments_in_use)
-	}
-	
-	#[inline(always)]
-	pub(crate) fn calculate_sender_maximum_segment_size_in_non_synchronized_state(negotiated_maximum_segment_size: u16, timestamps_in_use: bool, md5_signatures_in_use: bool, selective_acknowledgments_permitted_in_use: bool, maximum_segment_size_in_use: bool, window_scale_in_use: bool) -> u16
-	{
-		let mut options_size = if timestamps_in_use
-		{
-			TimestampsOption::KnownLength
-		}
-		else
-		{
-			0
-		};
-		
-		if md5_signatures_in_use
-		{
-			options_size += AuthenticationOption::Md5SignatureOptionKnownLength;
-		}
-		
-		if selective_acknowledgments_permitted_in_use
-		{
-			options_size += SelectiveAcknowledgmentPermittedOptionKnownLength::OneBlockLength;
-		}
-		
-		if maximum_segment_size_in_use
-		{
-			options_size += MaximumSegmentSizeOption::KnownLength;
-		}
-		
-		if window_scale_in_use
-		{
-			options_size += WindowScaleOption::KnownLength;
-		}
-		
-		negotiated_maximum_segment_size - (TcpSegment::round_up_options_size_to_multiple_of_four(options_size) as u16)
-	}
-	
-	#[inline(always)]
-	pub(crate) fn calculate_sender_maximum_segment_size_in_synchronized_state(negotiated_maximum_segment_size: u16, timestamps_in_use: bool, md5_signatures_in_use: bool, selective_acknowledgments_in_use: bool) -> u16
-	{
-		let mut options_size = if timestamps_in_use
-		{
-			TimestampsOption::KnownLength
-		} else {
-			0
-		};
-		
-		if md5_signatures_in_use
-		{
-			options_size += AuthenticationOption::Md5SignatureOptionKnownLength;
-		}
-		
-		if selective_acknowledgments_in_use
-		{
-			options_size += SelectiveAcknowledgmentOption::OneBlockLength;
-		}
-		
-		negotiated_maximum_segment_size - (TcpSegment::round_up_options_size_to_multiple_of_four(options_size) as u16)
 	}
 }
 

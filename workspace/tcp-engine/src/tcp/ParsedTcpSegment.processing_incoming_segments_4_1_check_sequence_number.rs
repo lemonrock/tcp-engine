@@ -70,7 +70,7 @@ macro_rules! processing_incoming_segments_4_1_check_sequence_number
 					Some(timestamps_option)
 				}
 				
-				None => if unlikely($self.reset_flag_set())
+				None => if unlikely!($self.reset_flag_set())
 				{
 					check_sequence_number_4_1_1_2_r2!($self, $transmission_control_block);
 					None

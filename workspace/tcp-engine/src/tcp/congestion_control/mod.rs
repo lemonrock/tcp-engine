@@ -7,6 +7,5 @@ use super::*;
 
 include!("CachedCongestionData.rs");
 include!("CongestionControl.rs");
-include!("CongestionRecovery.rs");
 include!("ExplicitCongestionNotificationState.rs");
 include!("InitialCongestionWindowAlgorithm.rs");

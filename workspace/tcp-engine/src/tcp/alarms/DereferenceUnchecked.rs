@@ -4,7 +4,7 @@
 
 trait DereferenceUnchecked
 {
-	type AB: AlarmBehaviour;
+	type AB;
 	
 	type TCBA: TransmissionControlBlockAbstractions;
 	
@@ -15,7 +15,7 @@ trait DereferenceUnchecked
 	fn dereference_unchecked<'a>(self) -> &'a mut Alarm<Self::AB, Self::TCBA>;
 }
 
-impl DereferenceUnchecked for *mut Alarm<AB, TCBA>
+impl<AB: AlarmBehaviour<TCBA>, TCBA: TransmissionControlBlockAbstractions> DereferenceUnchecked for *mut Alarm<AB, TCBA>
 {
 	type AB = AB;
 	

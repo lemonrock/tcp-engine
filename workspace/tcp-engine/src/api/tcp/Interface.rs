@@ -82,7 +82,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 				{
 					let tcp_segment_offset = $packet.layer_4_packet_offset::<TCBA::Address>();
 					
-					if unlikely(tcp_segment_length < size_of::<TcpFixedHeader>())
+					if unlikely!(tcp_segment_length < size_of::<TcpFixedHeader>())
 					{
 						drop!($self, $packet, "TCP frame (segment) is shorted than minimum size of TCP fixed header (excluding options)")
 					}
@@ -91,14 +91,14 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 					
 					let raw_data_length_bytes = tcp_segment.raw_data_length_bytes();
 					
-					if unlikely(raw_data_length_bytes < (5 << 4))
+					if unlikely!(raw_data_length_bytes < (5 << 4))
 					{
 						drop!($self, $packet, "TCP header length 32-bit words was too small (less than 5)")
 					}
 					
 					let header_length_in_bytes_including_options = raw_data_length_bytes as usize;
 					
-					if unlikely(tcp_segment_length < header_length_in_bytes_including_options)
+					if unlikely!(tcp_segment_length < header_length_in_bytes_including_options)
 					{
 						drop!($self, $packet, "TCP frame (segment) length is less than that indicated by its own header length, ie the TCP frame is cut short")
 					}
@@ -143,7 +143,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 			{
 				{
 					// Implied from RFC 793 Section 3.7 Open Call CLOSED State page 54: "A SYN segment of the form <SEQ=ISS><CTL=SYN> is sent".
-					if unlikely($SEG.ACK().is_not_zero())
+					if unlikely!($SEG.ACK().is_not_zero())
 					{
 						drop!($self, $packet, "TCP Synchronize segment has a non-zero initial ACK field")
 					}
@@ -151,7 +151,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 					if cfg!(not(feature = "rfc-8311-permit-explicit-congenstion-markers-on-all-packets"))
 					{
 						// RFC 3168 Section 6.1.1: "A host MUST NOT set ECT on SYN or SYN-ACK packets".
-						if unlikely($packet.explicit_congestion_notification().is_ect_or_congestion_experienced_set())
+						if unlikely!($packet.explicit_congestion_notification().is_ect_or_congestion_experienced_set())
 						{
 							drop!($self, $packet, "TCP packet has an Internet Protocol Explicit Congestion Notification (ECN) set for a Synchronize segment in violation of RFC 3168")
 						}
@@ -168,7 +168,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 			($self: ident, $now: ident, $packet: ident, $smallest_acceptable_tcp_maximum_segment_size_option: ident, $options_length: ident, $all_flags: ident, $source_internet_protocol_address: ident, $SEG: ident, $tcp_segment_length: ident) =>
 			{
 				{
-					if unlikely($self.transmission_control_blocks_at_maximum_capacity())
+					if unlikely!($self.transmission_control_blocks_at_maximum_capacity())
 					{
 						drop!($self, $SEG, "TCP at maximum capacity")
 					}
@@ -184,7 +184,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		
 		let all_flags = SEG.all_flags();
 		
-		if unlikely(all_flags.are_null())
+		if unlikely!(all_flags.are_null())
 		{
 			drop!(packet, "TCP null scan")
 		}
@@ -192,19 +192,19 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		// RFC 3360 Section 2.1: "... the Reserved field should be zero when sent and ignored when received, unless specified otherwise by future standards actions".
 		//
 		// We VIOLATE the RFC here.
-		if unlikely(SEG.are_reserved_bits_set_or_has_historic_nonce_sum_flag())
+		if unlikely!(SEG.are_reserved_bits_set_or_has_historic_nonce_sum_flag())
 		{
 			// RFC 3360 Section 2.1: "... the phrasing in RFC 793 does not permit sending resets in response to TCP	packets with a non-zero Reserved field, as is explained in the section above".
 			drop!(packet, "TCP reserved bits are set or have historic Nonce Sum (NS) flag set")
 		}
 		
-		if unlikely(all_flags.has_urgent_flag())
+		if unlikely!(all_flags.has_urgent_flag())
 		{
 			drop!(packet, "TCP URG flag is not supported")
 		}
 		else if cfg!(feature = "drop-urgent-pointer-field-non-zero")
 		{
-			if unlikely(SEG.urgent_pointer_if_URG_flag_set_is_not_zero())
+			if unlikely!(SEG.urgent_pointer_if_URG_flag_set_is_not_zero())
 			{
 				drop!(packet, "TCP drop-urgent-pointer-field-non-zero")
 			}
@@ -212,7 +212,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		
 		let source_internet_protocol_address = packet.source_internet_protocol_address(internet_protocol_packet_offset);
 		
-		if unlikely(self.is_tcp_check_sum_invalid(SEG, layer_4_packet_size, source_internet_protocol_address))
+		if unlikely!(self.is_tcp_check_sum_invalid(SEG, layer_4_packet_size, source_internet_protocol_address))
 		{
 			drop!(packet, "TCP check sum is invalid")
 		}
@@ -265,9 +265,9 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 {
 	#[inline(always)]
-	pub(crate) fn validate_syncookie(&self, remote_internet_protocol_address: &TCBA::Address, SEG: &ParsedTcpSegment) -> Result<ParsedSynCookie, ()>
+	pub(crate) fn validate_syncookie(&self, remote_internet_protocol_address: &TCBA::Address, SEG: &ParsedTcpSegment<TCBA>) -> Result<ParsedSynCookie, ()>
 	{
-		self.syn_cookie_protection.validate_syncookie_in_acknowledgment(&self.local_internet_protocol_address, remote_internet_protocol_address, SEG)
+		self.syn_cookie_protection.validate_syncookie_in_acknowledgment(&self.local_internet_protocol_address, remote_internet_protocol_address, SEG.ACK, SEG.SEQ, SEG.source_port_destination_port())
 	}
 	
 	#[inline(always)]
@@ -594,12 +594,12 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 			
 			options_data_pointer = TcpSegment::write_maximum_segment_size_option(TransmissionControlBlock::maximum_segment_size_to_send_to_remote(their_maximum_segment_size, self, remote_internet_protocol_address));
 			
-			if likely(their_window_scale.is_some())
+			if likely!(their_window_scale.is_some())
 			{
 				options_data_pointer = TcpSegment::write_window_scale_option(InitialWindowSize::Scale)
 			}
 			
-			if likely(their_selective_acknowledgment_permitted)
+			if likely!(their_selective_acknowledgment_permitted)
 			{
 				options_data_pointer = TcpSegment::write_selective_acknowledgment_permitted_option(options_data_pointer)
 			}
@@ -626,7 +626,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		let layer_4_packet_size = TcpSegment::layer_4_packet_size(padded_options_size, payload_size);
 		
 		{
-			let syncookie = self.syn_cookie_protection.create_syn_cookie_for_synchronize_acnowledgment(now, &self.local_internet_protocol_address, remote_internet_protocol_address, SEG, their_maximum_segment_size, their_window_scale, their_selective_acknowledgment_permitted, explicit_congestion_notification_supported);
+			let syncookie = self.syn_cookie_protection.create_syn_cookie_for_synchronize_acnowledgment(now, &self.local_internet_protocol_address, remote_internet_protocol_address, SEG.SEQ, SEG.source_port_destination_port(), their_maximum_segment_size, their_window_scale, their_selective_acknowledgment_permitted, explicit_congestion_notification_supported);
 			
 			let flags = if explicit_congestion_notification_supported
 			{

@@ -8,7 +8,7 @@
 ///
 /// * the value `M` has a random offset applied.
 /// * the secret key is 256 bits.
-pub(crate) struct InitialSequenceNumberGenerator
+pub struct InitialSequenceNumberGenerator
 {
 	secret_key: [u8; 256 / 8]
 }
@@ -37,16 +37,19 @@ impl Default for InitialSequenceNumberGenerator
 
 impl InitialSequenceNumberGenerator
 {
+	/// Generate in an initial sequence number.
+	#[allow(non_snake_case)]
 	#[inline(always)]
-	pub(crate) fn generate_initial_sequence_number<Address: InternetProtocolAddress>(&self, local_address: &Address, remote_address: &Address, remote_port_local_port: RemotePortLocalPort) -> WrappingSequenceNumber
+	pub fn generate_initial_sequence_number<Address: InternetProtocolAddress>(&self, local_address: &Address, remote_address: &Address, remote_port_local_port: RemotePortLocalPort) -> WrappingSequenceNumber
 	{
 		let M = Self::M();
 		let F = self.F(local_address, remote_address, remote_port_local_port);
-		WrappingSequenceNumber(M.wrapping_add(F))
+		WrappingSequenceNumber::from(M.wrapping_add(F) as u32)
 	}
 	
+	#[allow(non_snake_case)]
 	#[inline(always)]
-	fn M()
+	fn M() -> u64
 	{
 		const FourMicrosecondTick: u64 = 4;
 		
@@ -55,8 +58,9 @@ impl InitialSequenceNumberGenerator
 		rfc_6528_M + Self::random_offset()
 	}
 	
+	#[allow(non_snake_case)]
 	#[inline(always)]
-	fn F<Address: InternetProtocolAddress>(&self, local_address: &Address, remote_address: &Address, remote_port_local_port: RemotePortLocalPort) -> u32
+	fn F<Address: InternetProtocolAddress>(&self, local_address: &Address, remote_address: &Address, remote_port_local_port: RemotePortLocalPort) -> u64
 	{
 		let mut hasher = Sha256::default();
 		
@@ -66,24 +70,29 @@ impl InitialSequenceNumberGenerator
 		hasher.input(remote_port_local_port.remote_port().bytes());
 		hasher.input(&self.secret_key);
 		
-		let sha_256_digest_u256 = hasher.result();
+		let digest = hasher.result();
 		
-		const BytesInASha256Digest: usize = 256 / 8;
-		const BytesPerU32: usize = size_of::<u32>();
+		Self::xor_digest_bytes_to_8_bytes(&digest[..])
+	}
+	
+	#[inline(always)]
+	fn xor_digest_bytes_to_8_bytes(digest: &[u8]) -> u64
+	{
+		type BytesPointer = *const u64;
+		const BytesPerU64: usize = size_of::<u64>();
 		
-		let mut pointer_to_next_u32 = sha_256_digest_u256.as_slice().as_ptr() as usize;
+		let pointer_to_start = digest.as_ptr() as usize;
+		let pointer_to_end = pointer_to_start + digest.len();
 		
-		let mut sha_256_digest_u32 = unsafe { * (pointer_to_next_u32 as *const u32) };
-		pointer_to_next_u32 += BytesPerU32;
-		
-		let pointer_to_end = pointer_to_next_u32 + BytesInASha256Digest;
-		while pointer_to_next_u32 != pointer_to_end
+		let mut xor_ed_digest = 0;
+		let mut pointer_to_next_u64 = pointer_to_start;
+		while pointer_to_next_u64 != pointer_to_end
 		{
-			sha_256_digest_u32 ^= unsafe { * (pointer_to_next_u32 as *const u32) };
-			pointer_to_next_u32 += BytesPerU32;
+			xor_ed_digest ^= unsafe { * (pointer_to_next_u64 as BytesPointer) };
+			pointer_to_next_u64 += BytesPerU64;
 		}
 		
-		sha_256_digest_u32
+		xor_ed_digest
 	}
 	
 	#[inline(always)]

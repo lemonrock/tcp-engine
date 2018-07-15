@@ -9,18 +9,18 @@ macro_rules! parse_option_variable_length_including_option_kind_and_length_field
 		{
 			let pointer_to_length = $pointer_to_option_kind + 1;
 		
-			if unlikely(pointer_to_length == $end_pointer)
+			if unlikely!(pointer_to_length == $end_pointer)
 			{
 				drop!($interface, $packet, "TCP option (other than 0 and 1) had missing length")
 			}
 		
 			let length_including_option_kind_and_length_fields = TcpOptions::parse_option_length_without_checks(pointer_to_length);
-			if unlikely(length_including_option_kind_and_length_fields < 2)
+			if unlikely!(length_including_option_kind_and_length_fields < 2)
 			{
 				drop!($interface, $packet, "TCP option length (variable) is too small")
 			}
 			
-			if unlikely($pointer_to_option_kind + (length_including_option_kind_and_length_fields as usize) > $end_pointer)
+			if unlikely!($pointer_to_option_kind + (length_including_option_kind_and_length_fields as usize) > $end_pointer)
 			{
 				drop!($interface, $packet, "TCP option length (variable) overflows options space in TCP header")
 			}
@@ -35,7 +35,7 @@ macro_rules! parse_option_known_length
 	($interface: ident, $packet: ident, $pointer_to_option_kind: ident, $end_pointer: ident, $known_length: ident) =>
 	{
 		{
-			if unlikely($pointer_to_option_kind + $known_length > $end_pointer)
+			if unlikely!($pointer_to_option_kind + $known_length > $end_pointer)
 			{
 				drop!($interface, $packet, "TCP option length (known) overflows options space in TCP header")
 			}
@@ -45,7 +45,7 @@ macro_rules! parse_option_known_length
 				let pointer_to_length = $pointer_to_option_kind + 1;
 				let length = TcpOptions::parse_option_length_without_checks(pointer_to_length);
 				
-				if unlikely(length != $known_length as u8)
+				if unlikely!(length != $known_length as u8)
 				{
 					drop!($interface, $packet, "TCP option known length did not match length in packet")
 				}
@@ -61,7 +61,7 @@ macro_rules! parse_unsupported_or_unknown_option
 	($interface: ident, $packet: ident, $pointer_to_option_kind: ident, $end_pointer: ident, $duplicate_unknown_options: ident, $option_kind: expr) =>
 	{
 		{
-			if unlikely($duplicate_unknown_options.contains($option_kind))
+			if unlikely!($duplicate_unknown_options.contains($option_kind))
 			{
 				drop!($interface, $packet, "TCP option was a duplicate of an unknown option")
 			}
@@ -82,7 +82,7 @@ macro_rules! parse_selective_acknowledgment_block
 			let left_edge_of_block = block.0;
 			let right_edge_of_block = block.1;
 			let right_edge_of_block_is_not_greater_than_left_edge = !(block.0 < block.1);
-			if unlikely(right_edge_of_block_is_not_greater_than_left_edge)
+			if unlikely!(right_edge_of_block_is_not_greater_than_left_edge)
 			{
 				drop!($interface, $packet, "TCP selective acknowledgment option had a block whose right edge was not greater than the left edge")
 			}
@@ -129,7 +129,7 @@ macro_rules! parse_options
 							// Note that this check could be made more efficient by looping 8 bytes at a time.
 							while pointer_to_padding != end_pointer
 							{
-								if unlikely(unsafe { *(pointer_to_padding as *const u8) } != 0x00)
+								if unlikely!(unsafe { *(pointer_to_padding as *const u8) } != 0x00)
 								{
 									drop!($interface, $packet, "Padding at end of options list was not zero")
 								}
@@ -164,12 +164,12 @@ macro_rules! parse_options
 					{
 						const KnownLength: usize = MaximumSegmentSizeOption::KnownLength;
 						
-						if unlikely(tcp_options.has_maximum_segment_size())
+						if unlikely!(tcp_options.has_maximum_segment_size())
 						{
 							drop!($interface, $packet, "TCP option maximum segment size was duplicated")
 						}
 						
-						if unlikely($all_flags.does_not_contain(Flags::Synchronize))
+						if unlikely!($all_flags.does_not_contain(Flags::Synchronize))
 						{
 							drop!($interface, $packet, "TCP option maximum segment size was specified on a segment other than Synchronize or SynchronizeAcknowledgment")
 						}
@@ -177,7 +177,7 @@ macro_rules! parse_options
 						let pointer_to_data = parse_option_known_length!($interface, $packet, pointer_to_option_kind, end_pointer, KnownLength);
 						
 						let maximum_segment_size = MaximumSegmentSizeOption(unsafe { *(pointer_to_data as *const NetworkEndianU16) });
-						if unlikely(maximum_segment_size < $smallest_acceptable_tcp_maximum_segment_size_option)
+						if unlikely!(maximum_segment_size < $smallest_acceptable_tcp_maximum_segment_size_option)
 						{
 							drop!($interface, $packet, "TCP option maximum segment size was smaller than smallest_acceptable_tcp_maximum_segment_size_option")
 						}
@@ -194,7 +194,7 @@ macro_rules! parse_options
 					{
 						const KnownLength: usize = WindowScaleOption::KnownLength;
 						
-						if unlikely(tcp_options.has_window_scale())
+						if unlikely!(tcp_options.has_window_scale())
 						{
 							drop!($interface, $packet, "TCP option window scale was duplicated")
 						}
@@ -208,7 +208,7 @@ macro_rules! parse_options
 						{
 							const Rfc7323MaximumInclusiveWindowScale: u8 = 14;
 							let raw_window_scale = unsafe { *(pointer_to_data as *const u8) };
-							if unlikely(raw_window_scale > Rfc7323MaximumInclusiveWindowScale)
+							if unlikely!(raw_window_scale > Rfc7323MaximumInclusiveWindowScale)
 							{
 								drop!($interface, $packet, "TCP option window scale exceeded the RFC 7323 maximum of 14")
 							}
@@ -225,12 +225,12 @@ macro_rules! parse_options
 					{
 						const KnownLength: usize = SelectiveAcknowledgmentOption::SelectiveAcknowledgmentPermittedOptionKnownLength;
 						
-						if unlikely(tcp_options.has_selective_acknowledgment_permitted())
+						if unlikely!(tcp_options.has_selective_acknowledgment_permitted())
 						{
 							drop!($interface, $packet, "TCP option selective acknowledgment permitted was duplicated")
 						}
 						
-						if unlikely($all_flags.does_not_contain(Flags::Synchronize))
+						if unlikely!($all_flags.does_not_contain(Flags::Synchronize))
 						{
 							drop!($interface, $packet, "TCP option selective acknowledgment permitted was specified on a segment other than Synchronize or SynchronizeAcknowledgment")
 						}
@@ -246,12 +246,12 @@ macro_rules! parse_options
 					// Definition in RFC 2018.
 					SelectiveAcknowledgmentOption::Kind =>
 					{
-						if unlikely(tcp_options.has_selective_acknowledgment())
+						if unlikely!(tcp_options.has_selective_acknowledgment())
 						{
 							drop!($interface, $packet, "TCP option selective acknowledgment was duplicated")
 						}
 						
-						if unlikely($all_flags.does_not_contain(Flags::Acknowledgment) || $all_flags == Flags::SynchronizeAcknowledgment)
+						if unlikely!($all_flags.does_not_contain(Flags::Acknowledgment) || $all_flags == Flags::SynchronizeAcknowledgment)
 						{
 							drop!($interface, $packet, "TCP option selective acknowledgment was specified on a segment other than Acknowledgment or was present on a SynchronizeAcknowledgment")
 						}
@@ -331,7 +331,7 @@ macro_rules! parse_options
 					{
 						const KnownLength: usize = TimestampsOption::KnownLength;
 						
-						if unlikely(tcp_options.has_timestamps())
+						if unlikely!(tcp_options.has_timestamps())
 						{
 							drop!($interface, $packet, "TCP option timestamps was duplicated")
 						}
@@ -360,7 +360,7 @@ macro_rules! parse_options
 					{
 						const KnownLength: usize = AuthenticationOption::Md5SignatureOptionKnownLength;
 						
-						if unlikely(tcp_options.has_authentication())
+						if unlikely!(tcp_options.has_authentication())
 						{
 							drop!($interface, $packet, "TCP option MD5 was duplicated or specified in addition to TCP option authentication")
 						}
@@ -417,7 +417,7 @@ macro_rules! parse_options
 						{
 							KnownOfficialRfc5482Length =>
 							{
-								if unlikely(tcp_options.has_user_time_out())
+								if unlikely!(tcp_options.has_user_time_out())
 								{
 									drop!($interface, $packet, "TCP option User Time Out was duplicated")
 								}
@@ -467,7 +467,7 @@ macro_rules! parse_options
 					// Not widely used, if at all.
 					AuthenticationOption::Kind =>
 					{
-						if unlikely(tcp_options.has_authentication())
+						if unlikely!(tcp_options.has_authentication())
 						{
 							drop!($interface, $packet, "TCP option authentication was duplicated or specified in addition to TCP option MD5")
 						}
@@ -476,7 +476,7 @@ macro_rules! parse_options
 						
 						const MinimumLength: u8 = 4;
 						
-						if unlikely(length < MinimumLength)
+						if unlikely!(length < MinimumLength)
 						{
 							drop!($interface, $packet, "TCP option authentication was less than the minimum length of 4")
 						}

@@ -66,7 +66,7 @@ impl<'a, 'b, TCBA: 'a + 'b + TransmissionControlBlockAbstractions> ParsedTcpSegm
 		
 		validate_authentication!(self);
 		
-		if unlikely(self.SEG.ACK() != WrappingSequenceNumber::Zero)
+		if unlikely!(self.SEG.ACK() != WrappingSequenceNumber::Zero)
 		{
 			invalid!(self, "TCP Synchronize packets should have an initial ACK of zero (0)");
 		}
@@ -111,7 +111,7 @@ impl<'a, 'b, TCBA: 'a + 'b + TransmissionControlBlockAbstractions> ParsedTcpSegm
 		
 		if transmission_control_block.timestamps_are_required_in_all_segments_except_reset()
 		{
-			if unlikely(self.reset_flag_unset() && self.tcp_options.does_not_have_timestamps())
+			if unlikely!(self.reset_flag_unset() && self.tcp_options.does_not_have_timestamps())
 			{
 				invalid!(self, "TCP Segment received (which was not Reset) which was missing a Timestamps option after timestamps negotiated")
 			}
@@ -191,7 +191,7 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 				if cfg!(not(feature = "rfc-8311-permit-explicit-congenstion-markers-on-all-packets"))
 				{
 					// RFC 3168 Section 6.1.1: "A host MUST NOT set ECT on SYN or SYN-ACK packets".
-					if unlikely(self.packet.explicit_congestion_notification().is_ect_or_congestion_experienced_set())
+					if unlikely!(self.packet.explicit_congestion_notification().is_ect_or_congestion_experienced_set())
 					{
 						invalid!(SEG, "TCP packet has an Internet Protocol Explicit Congestion Notification (ECN) set for a SynchronizeAcknowledgment segment in violation of RFC 3168")
 					}
@@ -237,7 +237,7 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 		
 		rfc_5961_5_2_acknowledgment_is_acceptable!(self, transmission_control_block);
 		
-		if unlikely(self.processing_incoming_segments_4_5_2_2_established_and_similar_for_other_states_process_acknowledgment(transmission_control_block))
+		if unlikely!(self.processing_incoming_segments_4_5_2_2_established_and_similar_for_other_states_process_acknowledgment(transmission_control_block))
 		{
 			return;
 		}
@@ -269,7 +269,7 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 		
 		rfc_5961_5_2_acknowledgment_is_acceptable!(self, transmission_control_block);
 		
-		if unlikely(self.processing_incoming_segments_4_5_2_2_established_and_similar_for_other_states_process_acknowledgment(transmission_control_block))
+		if unlikely!(self.processing_incoming_segments_4_5_2_2_established_and_similar_for_other_states_process_acknowledgment(transmission_control_block))
 		{
 			return;
 		}
@@ -331,7 +331,7 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 		
 		rfc_5961_5_2_acknowledgment_is_acceptable!(self, transmission_control_block);
 		
-		if unlikely(self.processing_incoming_segments_4_5_2_2_established_and_similar_for_other_states_process_acknowledgment(transmission_control_block))
+		if unlikely!(self.processing_incoming_segments_4_5_2_2_established_and_similar_for_other_states_process_acknowledgment(transmission_control_block))
 		{
 			return;
 		}
@@ -364,7 +364,7 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 		
 		rfc_5961_5_2_acknowledgment_is_acceptable!(self, transmission_control_block);
 		
-		if unlikely(self.processing_incoming_segments_4_5_2_2_established_and_similar_for_other_states_process_acknowledgment(transmission_control_block))
+		if unlikely!(self.processing_incoming_segments_4_5_2_2_established_and_similar_for_other_states_process_acknowledgment(transmission_control_block))
 		{
 			return;
 		}
@@ -397,7 +397,7 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 		
 		rfc_5961_5_2_acknowledgment_is_acceptable!(self, transmission_control_block);
 		
-		if unlikely(self.processing_incoming_segments_4_5_2_2_established_and_similar_for_other_states_process_acknowledgment(transmission_control_block))
+		if unlikely!(self.processing_incoming_segments_4_5_2_2_established_and_similar_for_other_states_process_acknowledgment(transmission_control_block))
 		{
 			return;
 		}
@@ -464,7 +464,7 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 		if cfg!(not(feature = "rfc-8311-permit-explicit-congenstion-markers-on-all-packets"))
 		{
 			// RFC 3168 Section 6.1.1: "A host MUST NOT set ECT on SYN or SYN-ACK packets".
-			if unlikely(self.packet.explicit_congestion_notification().is_ect_or_congestion_experienced_set())
+			if unlikely!(self.packet.explicit_congestion_notification().is_ect_or_congestion_experienced_set())
 			{
 				invalid!(SEG, "TCP packet has an Internet Protocol Explicit Congestion Notification set for a SynchronizeAcknowledgment segment in violation of RFC 3168")
 			}
@@ -472,7 +472,7 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 		
 		rfc_5961_5_2_acknowledgment_is_acceptable!(self, transmission_control_block);
 		
-		if unlikely(self.acknowledgment_is_unacceptable_after_applying_rfc_5961_section_5_2_paragraph_1(transmission_control_block))
+		if unlikely!(self.acknowledgment_is_unacceptable_after_applying_rfc_5961_section_5_2_paragraph_1(transmission_control_block))
 		{
 			invalid!(SEG, "TCP simultaneous open or invalid ACK ignored; Acknowledge or Reset not sent");
 		}
@@ -636,7 +636,7 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 		if let Some(explicit_congestion_notification_state) = transmission_control_block.explicit_congestion_notification_state()
 		{
 			// RFC 3168 Section 6.1.1: "A host MUST NOT set ECT on SYN or SYN-ACK packets"; hence congestion_encountered() is false and the CWR flag should not be set.
-			if likely(this_is_after_syn_ack)
+			if likely!(this_is_after_syn_ack)
 			{
 				if self.congestion_window_reduced_flag_set()
 				{

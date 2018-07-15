@@ -47,6 +47,15 @@ impl From<NetworkEndianU32> for WrappingSequenceNumber
 	}
 }
 
+impl From<MonotonicMillisecondTimestamp> for WrappingSequenceNumber
+{
+	#[inline(always)]
+	fn from(value: MonotonicMillisecondTimestamp) -> Self
+	{
+		WrappingSequenceNumber(value.into())
+	}
+}
+
 impl Into<NetworkEndianU32> for WrappingSequenceNumber
 {
 	#[inline(always)]

@@ -5,13 +5,13 @@
 // With a tick size of 128 ms, this gives just over 65 seconds, ie just over one minute.
 pub(crate) const NumberOfRingSlotsForAlarmsSoonToGoOffCompilerHack: usize = 512;
 
-pub(crate) struct AlarmWheel<AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstractions>
+pub(crate) struct AlarmWheel<AB: AlarmBehaviour<TCBA>, TCBA: TransmissionControlBlockAbstractions>
 {
 	last_called_at: Cell<Tick>,
 	alarms_which_expire_soon_ring: [AlarmList<AB, TCBA>; NumberOfRingSlotsForAlarmsSoonToGoOffCompilerHack],
 }
 
-impl<AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstractions> AlarmWheel<AB, TCBA>
+impl<AB: AlarmBehaviour<TCBA>, TCBA: TransmissionControlBlockAbstractions> AlarmWheel<AB, TCBA>
 {
 	const NumberOfRingSlotsForAlarmsSoonToGoOff: usize = NumberOfRingSlotsForAlarmsSoonToGoOffCompilerHack;
 	
@@ -56,9 +56,9 @@ impl<AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstractions> AlarmWheel<
 		};
 		
 		{
-			if goes_off_in_ticks > minimum_goes_off_at
+			if goes_off_in_ticks > minimum_goes_off_in_ticks
 			{
-				let remainder = goes_off_in_ticks - minimum_goes_off_at;
+				let remainder = goes_off_in_ticks - minimum_goes_off_in_ticks;
 				alarm_to_schedule.set_remainder(remainder);
 			}
 			else
@@ -82,7 +82,7 @@ impl<AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstractions> AlarmWheel<
 		
 		let number_of_ticks_which_have_elapsed_since_last_called = now - last_called_at;
 		
-		if likely(number_of_ticks_which_have_elapsed_since_last_called.is_zero())
+		if likely!(number_of_ticks_which_have_elapsed_since_last_called.is_zero())
 		{
 			return
 		}

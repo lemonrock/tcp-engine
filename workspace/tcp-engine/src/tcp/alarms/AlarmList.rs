@@ -3,12 +3,12 @@
 
 
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
-struct AlarmList<AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstractions>
+struct AlarmList<AB: AlarmBehaviour<TCBA>, TCBA: TransmissionControlBlockAbstractions>
 {
 	head: Cell<*mut Alarm<AB, TCBA>>,
 }
 
-impl <AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstractions> Default for AlarmList<AB, TCBA>
+impl <AB: AlarmBehaviour<TCBA>, TCBA: TransmissionControlBlockAbstractions> Default for AlarmList<AB, TCBA>
 {
 	#[inline(always)]
 	fn default() -> Self
@@ -17,7 +17,7 @@ impl <AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstractions> Default fo
 	}
 }
 
-impl<AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstractions> AlarmList<AB, TCBA>
+impl<AB: AlarmBehaviour<TCBA>, TCBA: TransmissionControlBlockAbstractions> AlarmList<AB, TCBA>
 {
 	const Empty: Self = Self
 	{
@@ -54,7 +54,8 @@ impl<AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstractions> AlarmList<A
 		
 		while expired_alarm_pointer.is_not_null()
 		{
-			expired_alarm_pointer.dereference_unchecked().expired(interface, now);
+			let expired_alarm = expired_alarm_pointer.dereference_unchecked();
+			expired_alarm.expired(interface, now);
 			
 			expired_alarm_pointer = expired_alarm.next()
 		}

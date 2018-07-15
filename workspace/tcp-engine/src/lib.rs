@@ -68,9 +68,6 @@ use ::libc::munmap;
 use ::libc::unlink;
 use ::md5::Digest as Md5Digest;
 use ::md5::Md5;
-use ::sha2::Digest as Sha2Digest;
-use ::sha2::Sha256;
-use ::siphasher::sip::SipHasher24;
 use ::std::cell::Cell;
 use ::std::cell::Ref;
 use ::std::cell::RefCell;
@@ -125,6 +122,3 @@ use ::std::slice::from_raw_parts_mut;
 use ::std::thread::sleep;
 use ::std::time::Duration;
 
-
-include!("likely.rs");
-include!("unlikely.rs");

@@ -6,7 +6,7 @@ macro_rules! rfc_5961_5_2_acknowledgment_is_acceptable
 {
     ($self: ident, $transmission_control_block: ident) =>
     {
-        if unlikely($transmission_control_block.SND.rfc_5961_section_5_2_paragraph_1($self))
+        if unlikely!($transmission_control_block.SND.rfc_5961_section_5_2_paragraph_1($self))
 		{
 			$self.interface.send_challenge_acknowledgment($self.reuse_packet(), $transmission_control_block, $self.now);
 			return

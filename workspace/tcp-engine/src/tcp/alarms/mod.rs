@@ -10,6 +10,8 @@ include!("AlarmBehaviour.rs");
 include!("AlarmList.rs");
 include!("AlarmWheel.rs");
 include!("DereferenceUnchecked.rs");
+
+include!("Alarms.rs");
 include!("KeepAliveAlarmBehaviour.rs");
 include!("RetransmissionAndZeroWindowProbeAlarmBehaviour.rs");
 include!("UserTimeOutAlarmBehaviour.rs");

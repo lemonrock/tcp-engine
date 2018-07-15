@@ -2,7 +2,7 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
-pub(crate) trait AlarmBehaviour<TCBA: TransmissionControlBlockAbstractions>: Debug
+pub(crate) trait AlarmBehaviour<TCBA: TransmissionControlBlockAbstractions>: Sized + Debug
 {
 	#[inline(always)]
 	fn process_alarm(transmission_control_block: &mut TransmissionControlBlock<TCBA>, interface: &Interface<TCBA>, now: Tick) -> Option<TickDuration>;

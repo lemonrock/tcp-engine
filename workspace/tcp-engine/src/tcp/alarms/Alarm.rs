@@ -3,7 +3,7 @@
 
 
 #[derive(Debug)]
-pub(crate) struct Alarm<AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstractions>
+pub(crate) struct Alarm<AB: AlarmBehaviour<TCBA>, TCBA: TransmissionControlBlockAbstractions>
 {
 	// Only valid when scheduled.
 	next: *mut Alarm<AB, TCBA>,
@@ -20,7 +20,7 @@ pub(crate) struct Alarm<AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstra
 	alarm_behaviour: AB,
 }
 
-impl<AB: AlarmBehaviour + Default, TCBA: TransmissionControlBlockAbstractions> Default for Alarm<AB, TCBA>
+impl<AB: AlarmBehaviour<TCBA> + Default, TCBA: TransmissionControlBlockAbstractions> Default for Alarm<AB, TCBA>
 {
 	#[inline(always)]
 	fn default() -> Self
@@ -29,7 +29,7 @@ impl<AB: AlarmBehaviour + Default, TCBA: TransmissionControlBlockAbstractions> D
 	}
 }
 
-impl<AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstractions> Alarm<AB, TCBA>
+impl<AB: AlarmBehaviour<TCBA>, TCBA: TransmissionControlBlockAbstractions> Alarm<AB, TCBA>
 {
 	const RingSlotIndexForUnscheduledAlarm: u16 = (NumberOfRingSlotsForAlarmsSoonToGoOffCompilerHack + 1) as u16;
 	
@@ -198,7 +198,7 @@ impl<AB: AlarmBehaviour, TCBA: TransmissionControlBlockAbstractions> Alarm<AB, T
 	}
 	
 	#[inline(always)]
-	fn dereference_unchecked<'a>(this: *mut Self) -> &'a mut T
+	fn dereference_unchecked<'a, T: 'a>(this: *mut Self) -> &'a mut T
 	{
 		unsafe { &mut * this }
 	}

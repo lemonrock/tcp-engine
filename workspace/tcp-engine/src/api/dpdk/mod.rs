@@ -71,7 +71,7 @@ else {
 			 * Prevent potential overflow due to MTU change through
 			 * kernel interface.
 			 */
-			if (unlikely(rte_pktmbuf_tailroom(pkt) < len)) {
+			if (unlikely!(rte_pktmbuf_tailroom(pkt) < len)) {
 				rte_pktmbuf_free_seg(pkt);
 				++rxq->stats.idropped;
 				continue;

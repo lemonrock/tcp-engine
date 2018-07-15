@@ -56,4 +56,11 @@ impl WindowSize
 	{
 		self.0 == Self::Zero.0
 	}
+	
+	/// Similar to into() but constant.
+	#[inline(always)]
+	pub const fn value(self) -> u32
+	{
+		self.0
+	}
 }

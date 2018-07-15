@@ -18,6 +18,9 @@
 
 use ::std::error;
 use ::std::cmp::max;
+use ::std::fmt;
+use ::std::fmt::Display;
+use ::std::fmt::Formatter;
 use ::std::fs::read;
 use ::std::mem::uninitialized;
 use ::std::ops::Add;

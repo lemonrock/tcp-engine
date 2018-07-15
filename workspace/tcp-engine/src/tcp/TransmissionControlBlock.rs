@@ -53,7 +53,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	{
 		let maximum_segment_size = interface.our_current_maximum_segment_size_without_fragmentation(&remote_internet_protocol_address);
 		
-		let cached_congestion_data = interface.cached_congestion_data(&remote_internet_protocol_address);
+		let recent_connection_data = interface.recent_connection_data(&remote_internet_protocol_address);
 		
 		let key = TransmissionControlBlockKey::for_client(remote_internet_protocol_address, for_client);
 		
@@ -67,7 +67,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 			RCV: TransmissionControlBlockReceive::new_for_closed_to_synchronize_sent(),
 			SND: TransmissionControlBlockSend::new_for_closed_to_synchronize_sent(interface, now, ISS),
 			keep_alive_alarm: Default::default(),
-			retransmission_and_zero_window_probe_alarm: Alarm::new(RetransmissionAndZeroWindowProbeAlarmBehaviour::new(&cached_congestion_data, true)),
+			retransmission_and_zero_window_probe_alarm: Alarm::new(RetransmissionAndZeroWindowProbeAlarmBehaviour::new(&recent_connection_data, true)),
 			user_time_out_alarm: Default::default(),
 			timestamping: Timestamping::new_for_closed_to_synchronize_sent(),
 			explicit_congestion_notification_state: if explicit_congestion_notification_supported
@@ -82,7 +82,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 			maximum_segment_size_to_send_to_remote: maximum_segment_size,
 			selective_acknowledgments_permitted: false,
 			md5_authentication_key,
-			congestion_control: CongestionControl::new(Self::InitialCongestionWindowAlgorithm, MonotonicMillisecondDuration::Zero, maximum_segment_size, &cached_congestion_data),
+			congestion_control: CongestionControl::new(Self::InitialCongestionWindowAlgorithm, now, maximum_segment_size, &recent_connection_data),
 		}
 	}
 	
@@ -91,7 +91,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	{
 		let remote_internet_protocol_address = source_internet_protocol_address;
 		
-		let cached_congestion_data = interface.cached_congestion_data(now, &remote_internet_protocol_address);
+		let recent_connection_data = interface.recent_connection_data(now, &remote_internet_protocol_address);
 		
 		let key = TransmissionControlBlockKey::from_incoming_segment(remote_internet_protocol_address, SEG.SEG);
 		
@@ -128,7 +128,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 			RCV: TransmissionControlBlockReceive::new_for_sychronize_received_to_established(RCV_NXT, RCV_WND, RCV_Wind_Shift),
 			SND: TransmissionControlBlockSend::new_for_sychronize_received_to_established(interface, now, ISS, IRS, SND_WND, SND_Wind_Shift),
 			keep_alive_alarm: Default::default(),
-			retransmission_and_zero_window_probe_alarm: Alarm::new(RetransmissionAndZeroWindowProbeAlarmBehaviour::new(&cached_congestion_data, false)),
+			retransmission_and_zero_window_probe_alarm: Alarm::new(RetransmissionAndZeroWindowProbeAlarmBehaviour::new(&recent_connection_data, false)),
 			user_time_out_alarm: Default::default(),
 			timestamping,
 			explicit_congestion_notification_state: if parsed_syncookie.explicit_congestion_notification_supported
@@ -143,7 +143,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 			maximum_segment_size_to_send_to_remote: maximum_segment_size,
 			selective_acknowledgments_permitted,
 			md5_authentication_key,
-			congestion_control: CongestionControl::new(Self::InitialCongestionWindowAlgorithm, now, maximum_segment_size, &cached_congestion_data),
+			congestion_control: CongestionControl::new(Self::InitialCongestionWindowAlgorithm, now, maximum_segment_size, &recent_connection_data),
 		}
 	}
 	
@@ -236,7 +236,6 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 		// This could be inefficient if not using LRO / GRO, so we may want a combined 'last woke up' / 'minimum data space available'
 		// We could combine this with small window / slow send to try to defeat slowloris like attacks.
 		// RFC 5681 Section 4.1: "TCP SHOULD set cwnd to no more than RW (the restart window) before beginning transmission if the TCP has not sent data in an interval exceeding the retransmission timeout".
-		// self.congestion_control.last_sent_data_at(now);
 		
 		// RFC 6296 Section 5: "An implementation MUST manage the retransmission timer(s) in such a way that a segment is never retransmitted too early, i.e., less than one RTO after the previous transmission of that segment".
 		//
@@ -502,6 +501,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 				
 				
 				
+				// TODO: self.congestion_control.last_sent_data_at(now);
 				
 				
 				
@@ -586,6 +586,12 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	}
 	
 	#[inline(always)]
+	fn ssthresh(&self) -> u32
+	{
+		self.congestion_control.ssthresh
+	}
+	
+	#[inline(always)]
 	fn increase_bytes_acknowledged(&mut self, by_amount_of_bytes: u32)
 	{
 		self.congestion_control.increase_bytes_acknowledged(by_amount_of_bytes)
@@ -639,6 +645,16 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 		{
 			explicit_congestion_notification_state.reduced_congestion_window()
 		}
+	}
+}
+
+impl<TCBA: TransmissionControlBlockAbstractions> RecentConnectionDataProvider<TCBA::Address> for TransmissionControlBlock<TCBA>
+{
+	#[inline(always)]
+	fn recent_connection_data(&self) -> (&TCBA::Address, RecentConnectionData)
+	{
+		let (smoothed_round_trip_time, round_trip_time_variance) = self.retransmission_and_zero_window_probe_alarm_behaviour_reference().smoothed_round_trip_time_and_round_trip_time_variance();
+		(self.remote_internet_protocol_address(), RecentConnectionData::new(smoothed_round_trip_time, round_trip_time_variance, self.ssthresh()))
 	}
 }
 
@@ -806,12 +822,6 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	}
 	
 	#[inline(always)]
-	pub(crate) fn smoothed_round_trip_time_and_round_trip_time_variance(&self) -> (MillisecondDuration, MillisecondDuration)
-	{
-		self.retransmission_and_zero_window_probe_alarm_behaviour_reference().smoothed_round_trip_time_and_round_trip_time_variance()
-	}
-	
-	#[inline(always)]
 	fn send_zero_window_probe_returning_true_if_failed(&mut self, interface: &Interface<TCBA>, now: MonotonicMillisecondTimestamp, is_transmission_not_retransmission: bool) -> bool
 	{
 		if unlikely!(interface.send_zero_window_probe(self, now).is_err())
@@ -823,7 +833,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 		{
 			if is_transmission_not_retransmission
 			{
-				self.congestion_control.last_sent_data_at = now;
+				self.congestion_control.last_sent_data_at(now);
 			}
 			false
 		}

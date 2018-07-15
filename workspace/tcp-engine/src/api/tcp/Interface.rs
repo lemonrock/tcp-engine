@@ -12,7 +12,7 @@ pub struct Interface<TCBA: TransmissionControlBlockAbstractions>
 	transmission_control_blocks: RefCell<BoundedHashMap<TransmissionControlBlockKey<TCBA::Address>, TransmissionControlBlock<TCBA>>>,
 	transmission_control_blocks_send_buffers: Rc<MagicRingBuffersArena>,
 	recently_closed_outbound_client_connection_source_ports: RefCell<LeastRecentlyUsedCacheWithExpiry<(TCBA::Address, u16), PortBitSet>>,
-	recent_connections_congestion_data: RefCell<LeastRecentlyUsedCacheWithExpiry<TCBA::Address, CachedCongestionData>>,
+	recent_connections_congestion_data: RecentConnectionDataCache<TCBA::Address>,
 	initial_sequence_number_generator: InitialSequenceNumberGenerator,
 	syn_cookie_protection: SynCookieProtection,
 	alarms: Alarms<TCBA>,
@@ -43,7 +43,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 			transmission_control_blocks: RefCell::new(BoundedHashMap::new(transmission_control_blocks_map_capacity)),
 			transmission_control_blocks_send_buffers: MagicRingBuffersArena::new(transmission_control_blocks_map_capacity, SendBufferSize),
 			recently_closed_outbound_client_connection_source_ports: RefCell::new(LeastRecentlyUsedCacheWithExpiry::new(maximum_recently_closed_outbound_client_connections_source_ports, OutboundConnectionExpiryPeriodIsRfc793DoubleMaximumSegmentLifetime)),
-			recent_connections_congestion_data: RefCell::new(LeastRecentlyUsedCacheWithExpiry::new(maximum_recent_connections_capacity, expiry_period)),
+			recent_connections_congestion_data: RecentConnectionDataCache::new(maximum_recent_connections_capacity, expiry_period),
 			initial_sequence_number_generator: InitialSequenceNumberGenerator::default(),
 			syn_cookie_protection: SynCookieProtection::new(now),
 			alarms: Alarms::new(now),
@@ -387,7 +387,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 	{
 		let transmission_control_block = self.transmission_control_blocks.borrow_mut().remove(key);
 		
-		self.update_recent_congestion_data(&transmission_control_block, now);
+		self.update_recent_connection_data(&transmission_control_block, now);
 		transmission_control_block.destroying(self, interface.alarms())
 	}
 	
@@ -434,31 +434,15 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 {
 	#[inline(always)]
-	pub(crate) fn cached_congestion_data<'a>(&self, now: MonotonicMillisecondTimestamp, remote_internet_protocol_address: &TCBA::Address) -> Ref<'a, CachedCongestionData>
+	pub(crate) fn recent_connection_data<'a>(&self, now: MonotonicMillisecondTimestamp, remote_internet_protocol_address: &TCBA::Address) -> Ref<'a, RecentConnectionData>
 	{
-		static Default: CachedCongestionData = CachedCongestionData::Default;
-		
-		let recent_connections_congestion_data = self.recent_connections_congestion_data.borrow_mut();
-		
-		Ref::map(recent_connections_congestion_data, |recent_connections_congestion_data| recent_connections_congestion_data.get(key).unwrap_or(&Default))
+		self.recent_connections_congestion_data.recent_connection_data(now, remote_internet_protocol_address)
 	}
 	
 	#[inline(always)]
-	fn update_recent_congestion_data(&self, transmission_control_block: &TransmissionControlBlock<TCBA>, now: MonotonicMillisecondTimestamp)
+	fn update_recent_connection_data(&self, transmission_control_block: &TransmissionControlBlock<TCBA>, now: MonotonicMillisecondTimestamp)
 	{
-		let recent_connections_congestion_data = self.recent_connections_congestion_data.borrow_mut();
-		
-		let remote_internet_protocol_address = transmission_control_block.remote_internet_protocol_address();
-		
-		let (smoothed_round_trip_time, round_trip_time_variance) = transmission_control_block.smoothed_round_trip_time_and_round_trip_time_variance();
-		if let Some(cached_connection_data) = recent_connections_congestion_data.get_mut(now, remote_internet_protocol_address)
-		{
-			cached_connection_data.update_retransmission_time_out(smoothed_round_trip_time_and_round_trip_time_variance);
-		}
-		else
-		{
-			recent_connections_congestion_data.insert(now, remote_internet_protocol_address, CachedCongestionData::new(smoothed_round_trip_time_and_round_trip_time_variance, transmission_control_block.congestion_control.ssthresh));
-		}
+		self.recent_connections_congestion_data.update_recent_connection_data(transmission_control_block, now)
 	}
 }
 

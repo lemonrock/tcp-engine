@@ -6,6 +6,14 @@
 #[derive(Default, Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct Tick(u64);
 
+impl Display for Tick
+{
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result
+	{
+		write!(f, "{}", self.0)
+	}
+}
+
 impl Add<u64> for Tick
 {
 	type Output = Self;

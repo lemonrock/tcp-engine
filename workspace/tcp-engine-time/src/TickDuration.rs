@@ -6,6 +6,14 @@
 #[derive(Default, Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct TickDuration(u64);
 
+impl Display for TickDuration
+{
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result
+	{
+		write!(f, "{}", self.0)
+	}
+}
+
 impl Mul<u64> for TickDuration
 {
 	type Output = Self;

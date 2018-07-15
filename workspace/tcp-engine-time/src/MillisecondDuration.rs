@@ -6,6 +6,14 @@
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct MillisecondDuration(u64);
 
+impl Display for MillisecondDuration
+{
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result
+	{
+		write!(f, "{}", self.0)
+	}
+}
+
 impl From<u8> for MillisecondDuration
 {
 	#[inline(always)]

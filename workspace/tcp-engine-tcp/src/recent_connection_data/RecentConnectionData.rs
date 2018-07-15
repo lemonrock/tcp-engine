@@ -2,8 +2,9 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
+/// Recent connection data.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct CachedCongestionData
+pub struct RecentConnectionData
 {
 	/// `SRTT`.
 	smoothed_round_trip_time: MillisecondDuration,
@@ -11,11 +12,11 @@ pub(crate) struct CachedCongestionData
 	/// `RTTVAR`.
 	round_trip_time_variance: MillisecondDuration,
 	
-	// RFC 5681: Section 3.1: "... the slow start threshold (ssthresh), is used to determine whether the slow start or congestion avoidance algorithm is used to control data transmission ..."
+	/// RFC 5681: Section 3.1: "... the slow start threshold (ssthresh), is used to determine whether the slow start or congestion avoidance algorithm is used to control data transmission ..."
 	ssthresh: u32,
 }
 
-impl Default for CachedCongestionData
+impl Default for RecentConnectionData
 {
 	#[inline(always)]
 	fn default() -> Self
@@ -24,7 +25,7 @@ impl Default for CachedCongestionData
 	}
 }
 
-impl CachedCongestionData
+impl RecentConnectionData
 {
 	const Default: Self = Self
 	{
@@ -33,11 +34,12 @@ impl CachedCongestionData
 		round_trip_time_variance: RetransmissionTimeOutData::InitialRoundTripTimeVariance,
 		
 		// RFC 5681: Section 3.1: "The initial value of ssthresh SHOULD be set arbitrarily high (e.g., to the size of the largest possible advertised window)".
-		ssthresh: WindowSize::Maximum.0,
+		ssthresh: WindowSize::Maximum.value(),
 	};
 	
+	/// Creates a new instance.
 	#[inline(always)]
-	pub(crate) fn new(&self, smoothed_round_trip_time: MillisecondDuration, round_trip_time_variance: MillisecondDuration, ssthresh: u32) -> CachedCongestionData
+	pub fn new(&self, smoothed_round_trip_time: MillisecondDuration, round_trip_time_variance: MillisecondDuration, ssthresh: u32) -> RecentConnectionData
 	{
 		Self
 		{
@@ -47,20 +49,29 @@ impl CachedCongestionData
 		}
 	}
 	
+	/// `SRTT` and `RTTVAR`.
 	#[inline(always)]
-	pub(crate) fn retransmission_time_out_data(&self, is_for_non_synchronized_state: bool) -> RetransmissionTimeOutData
+	pub fn retransmission_time_out_data(&self, is_for_non_synchronized_state: bool) -> RetransmissionTimeOutData
 	{
 		RetransmissionTimeOutData::new(self.smoothed_round_trip_time, self.round_trip_time_variance, is_for_non_synchronized_state)
 	}
 	
+	/// RFC 5681: Section 3.1: "... the slow start threshold (ssthresh), is used to determine whether the slow start or congestion avoidance algorithm is used to control data transmission ..."
 	#[inline(always)]
-	pub(crate) fn ssthresh(&self, sender_maximum_segment_size: u16) -> u32
+	pub fn ssthresh(&self, sender_maximum_segment_size: u32) -> u32
 	{
-		max((2 * sender_maximum_segment_size) as u32, self.ssthresh)
+		max(2 * sender_maximum_segment_size, self.ssthresh)
 	}
 	
 	#[inline(always)]
-	pub(crate) fn update_retransmission_time_out(&mut self, smoothed_round_trip_time: MillisecondDuration, round_trip_time_variance: MillisecondDuration)
+	pub(crate) fn update(&mut self, recent_connection_data_from_transmission_control_block: Self)
+	{
+		self.update_retransmission_time_out(recent_connection_data_from_transmission_control_block.smoothed_round_trip_time, recent_connection_data_from_transmission_control_block.round_trip_time_variance);
+		self.update_ssthresh(recent_connection_data_from_transmission_control_block.ssthresh)
+	}
+	
+	#[inline(always)]
+	fn update_retransmission_time_out(&mut self, smoothed_round_trip_time: MillisecondDuration, round_trip_time_variance: MillisecondDuration)
 	{
 		if self.smoothed_round_trip_time == RetransmissionTimeOutData::InitialSmoothedRoundTripTime
 		{
@@ -82,7 +93,7 @@ impl CachedCongestionData
 	}
 	
 	#[inline(always)]
-	pub(crate) fn update_ssthresh(&mut self, ssthresh: u32)
+	fn update_ssthresh(&mut self, ssthresh: u32)
 	{
 		if self.ssthresh == 0
 		{

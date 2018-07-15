@@ -7,26 +7,28 @@
 pub enum InitialCongestionWindowAlgorithm
 {
 	/// Calculate as per RFC 6928.
+	#[allow(non_camel_case_types)]
 	RFC_6928,
 	
 	/// Calculate as per RFC 5681.
+	#[allow(non_camel_case_types)]
 	RFC_5681,
 	
 	/// Calculate as per RFC 3390 (which is slightly more aggresive than RFC 5681).
+	#[allow(non_camel_case_types)]
 	RFC_3390_as_modified_by_RFC_6928_Section_2_Final_Paragraph_of_Page_4,
 
 	/// Calculate as per RFC 2581 (which is obsolete).
+	#[allow(non_camel_case_types)]
 	RFC_2581,
 }
 
 impl InitialCongestionWindowAlgorithm
 {
 	#[inline(always)]
-	fn compute_initial_window(self, sender_maximum_segment_size: u16) -> u64
+	fn compute_initial_window(self, sender_maximum_segment_size: u32) -> u32
 	{
 		use self::InitialCongestionWindowAlgorithm::*;
-		
-		let sender_maximum_segment_size = sender_maximum_segment_size as u64;
 		
 		match self
 		{

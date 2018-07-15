@@ -8,6 +8,14 @@
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct MonotonicMillisecondTimestamp(u64);
 
+impl Display for MonotonicMillisecondTimestamp
+{
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result
+	{
+		write!(f, "{}", self.0)
+	}
+}
+
 impl Default for MonotonicMillisecondTimestamp
 {
 	#[inline(always)]

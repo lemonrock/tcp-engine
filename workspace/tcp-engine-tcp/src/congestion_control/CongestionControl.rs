@@ -2,76 +2,87 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
+/// Congestion control.
 #[derive(Debug)]
-pub(crate) struct CongestionControl
+#[allow(non_snake_case)]
+pub struct CongestionControl
 {
 	initial_congestion_window_algorithm: InitialCongestionWindowAlgorithm,
 	
 	number_of_duplicate_acknowledgments_received_since_SND_UNA_advanced: u64,
 	
-	pub(crate) last_sent_data_at: MonotonicMillisecondTimestamp,
+	last_sent_data_at: MonotonicMillisecondTimestamp,
 	
-	// Named as per RFC 3465 Section 2.1.
-	//
-	// Known as 'Appropriate Byte Counting (ABC)'.
+	/// Named as per RFC 3465 Section 2.1.
+	///
+	/// Known as 'Appropriate Byte Counting (ABC)'.
 	bytes_acked: u32,
 	
-	// RFC 5681 Section 2: "CONGESTION WINDOW (cwnd):  A TCP state variable that limits the amount of data a TCP can send.
-	// At any given time, a TCP MUST NOT send data with a sequence number higher than the sum of the highest acknowledged sequence number and the minimum of cwnd and rwnd".
+	/// RFC 5681 Section 2: "CONGESTION WINDOW (cwnd):  A TCP state variable that limits the amount of data a TCP can send.
+	/// At any given time, a TCP MUST NOT send data with a sequence number higher than the sum of the highest acknowledged sequence number and the minimum of cwnd and rwnd".
 	cwnd: u32,
 	
-	// RFC 5681 Section 2: "FLIGHT SIZE: The amount of data that has been sent but not yet cumulatively acknowledged".
+	/// RFC 5681 Section 2: "FLIGHT SIZE: The amount of data that has been sent but not yet cumulatively acknowledged".
 	FlightSize: u32,
 	
-	// RFC 5681: Section 3.1: "... the slow start threshold (ssthresh), is used to determine whether the slow start or congestion avoidance algorithm is used to control data transmission ..."
+	/// RFC 5681: Section 3.1: "... the slow start threshold (ssthresh), is used to determine whether the slow start or congestion avoidance algorithm is used to control data transmission ..."
 	ssthresh: u32,
 	
-	// RFC 5681 Section 2: "Sender Maximum Segment Size (SMSS)".
-	//
-	// This changes after the initial SYN has been sent, as the value reflects the use of options.
-	sender_maximum_segment_size: u16,
+	/// RFC 5681 Section 2: "Sender Maximum Segment Size (SMSS)".
+	///
+	/// This changes after the initial SYN has been sent, as the value reflects the use of options.
+	sender_maximum_segment_size: u32,
 }
 
 impl CongestionControl
 {
+	/// Creates a new instance.
 	#[inline(always)]
-	pub(crate) fn new(initial_congestion_window_algorithm: InitialCongestionWindowAlgorithm, last_acknowledgment_occurred_at: MonotonicMillisecondTimestamp, sender_maximum_segment_size: u16, cached_congestion_data: &CachedCongestionData) -> Self
+	pub fn new(initial_congestion_window_algorithm: InitialCongestionWindowAlgorithm, last_sent_data_at: MonotonicMillisecondTimestamp, sender_maximum_segment_size: u16, recent_connection_data: &RecentConnectionData) -> Self
 	{
-		let IW = initial_congestion_window_algorithm.compute_initial_window(sender_maximum_segment_size);
+		let sender_maximum_segment_size = sender_maximum_segment_size as u32;
+		
+		// RFC 5681 Section 2: "INITIAL WINDOW (IW): The initial window is the size of the sender's congestion window after the three-way handshake is completed".
+		#[allow(non_snake_case)] let IW = initial_congestion_window_algorithm.compute_initial_window(sender_maximum_segment_size);
 		
 		Self
 		{
 			initial_congestion_window_algorithm,
 			number_of_duplicate_acknowledgments_received_since_SND_UNA_advanced: 0,
-			last_sent_data_at: last_acknowledgment_occurred_at,
+			last_sent_data_at,
 			bytes_acked: 0,
 			cwnd: IW,
 			FlightSize: 0,
-			ssthresh: cached_congestion_data.ssthresh(sender_maximum_segment_size),
+			ssthresh: recent_connection_data.ssthresh(sender_maximum_segment_size),
 			sender_maximum_segment_size,
 		}
 	}
 	
+	/// Is the congestion window one (1)?
+	///
+	/// This is a definition used by older RFCs (especially explicit congestion notification) before appropriate byte counting was introduced; later ones consider a congestion window of '1' to be sender maximum segment size, SMSS, or possibly less.
 	#[inline(always)]
-	pub(crate) fn congestion_window_is_one(&self) -> bool
+	pub fn congestion_window_is_one(&self) -> bool
 	{
 		self.cwnd <= self.sender_maximum_segment_size
 	}
 	
 	// TODO: See also RFC 6582 New Reno: https://tools.ietf.org/html/rfc6582; this is a modification to fast retransmit / Fast Recovery.
+	#[allow(missing_docs)]
 	#[inline(always)]
-	pub(crate) fn bytes_sent_in_payload_in_a_segment_which_is_not_a_zero_window_probe_or_retransmission(&mut self, increase_flight_size_by_amount_of_bytes: u32)
+	pub fn bytes_sent_in_payload_in_a_segment_which_is_not_a_zero_window_probe_or_retransmission(&mut self, increase_flight_size_by_amount_of_bytes: u32)
 	{
 		self.FlightSize += increase_flight_size_by_amount_of_bytes
 	}
 	
+	/// Increase bytes acknowledged
 	#[inline(always)]
-	pub(crate) fn increase_bytes_acknowledged(&mut self, decrease_flight_size_by_amount_of_bytes: u32)
+	pub fn increase_bytes_acknowledged(&mut self, decrease_flight_size_by_amount_of_bytes: u32)
 	{
 		self.FlightSize -= decrease_flight_size_by_amount_of_bytes;
 		
-		/// RFC 5681 Section 3.1: "The slow start algorithm is used when cwnd < ssthresh, while the congestion avoidance algorithm is used when cwnd > ssthresh.
-		/// When cwnd and ssthresh are equal, the sender may use either slow start or congestion avoidance".
+		// RFC 5681 Section 3.1: "The slow start algorithm is used when cwnd < ssthresh, while the congestion avoidance algorithm is used when cwnd > ssthresh.
+		// When cwnd and ssthresh are equal, the sender may use either slow start or congestion avoidance".
 		if self.congestion_window() <= self.ssthresh
 		{
 			self.increase_bytes_acknowledged_slow_start(decrease_flight_size_by_amount_of_bytes)
@@ -83,14 +94,20 @@ impl CongestionControl
 	}
 	
 	/// RFC 5681: "... N is the number of previously unacknowledged bytes acknowledged in the incoming ACK".
+	///
+	/// `N` is `bytes_acked` in RFC 3465.
+	#[inline(always)]
+	#[allow(non_snake_case)]
 	fn increase_bytes_acknowledged_slow_start(&mut self, N: u32)
 	{
+		let sender_maximum_segment_size = self.sender_maximum_segment_size;
+
 		// RFC 5681 Section 7 Paragraph 5: "During slow start, the usage of Appropriate Byte Counting (RFC 3465) with L=1*SMSS is explicitly recommended".
 		{
 			// RFC 3465 Section 2.3: "The limit, L, chosen for the cwnd increase during slow start, controls the aggressiveness of the algorithm".
-			let L = self.sender_maximum_segment_size;
+			let L = sender_maximum_segment_size;
 			
-			let clamped_maxium_number_of_bytes = max(by_amount_of_bytes, L);
+			let clamped_maxium_number_of_bytes = max(N, L);
 			
 			self.bytes_acked += clamped_maxium_number_of_bytes;
 			
@@ -102,13 +119,15 @@ impl CongestionControl
 		}
 		// RFC 3465 Section 2.1: "Next, cwnd is incremented by a full-sized segment (SMSS)".
 		// RFC 5681 Section 3.1: "... we RECOMMEND that TCP implementations increase cwnd, per: cwnd += min (N, SMSS) where N is the number of previously unacknowledged bytes acknowledged in the incoming ACK".
-		self.increment_congestion_window(min(N, self.sender_maximum_segment_size))
+		self.increment_congestion_window(min(N, sender_maximum_segment_size))
 	}
 	
+	#[inline(always)]
+	#[allow(non_snake_case)]
 	fn increase_bytes_acknowledged_congestion_avoidance(&mut self, N: u32)
 	{
-// TODO: double-check this methodology.
-		xxx;
+		// TODO: double-check this methodology; it seems wrong.
+		panic!("Unimplemented");
 
 //		let clamped_maxium_number_of_bytes = min(N, self.sender_maximum_segment_size);
 //		self.bytes_acked += clamped_maxium_number_of_bytes;
@@ -141,42 +160,40 @@ impl CongestionControl
 	///
 	/// RFC 5681 Section 7 Paragraph 6: "...  ssthresh must be set to half the FlightSize on the first retransmission of a given segment and then is held constant on subsequent retransmissions of the same segment".
 	#[inline(always)]
-	pub(crate) fn rfc_5681_section_7_paragaph_6_set_ssthresh_to_half_of_flight_size_on_first_retransmission(&mut self)
+	pub fn rfc_5681_section_7_paragaph_6_set_ssthresh_to_half_of_flight_size_on_first_retransmission(&mut self)
 	{
 		self.ssthresh = max(self.FlightSize / 2, 2 * self.sender_maximum_segment_size)
 	}
 	
 	/// RFC 5681 Section 2: "At any given time, a TCP MUST NOT send data with a sequence number higher than the sum of the highest acknowledged sequence number and the minimum of cwnd and rwnd".
 	#[inline(always)]
-	pub(crate) fn maximum_data(&self, rwnd: u32) -> u32
+	pub fn maximum_data(&self, rwnd: u32) -> u32
 	{
 		min(self.congestion_window(), rwnd)
 	}
 	
-	/// RFC 5681 Section 2: "At any given time, a TCP MUST NOT send data with a sequence number higher than the sum of the highest acknowledged sequence number and the minimum of cwnd and rwnd".
-	#[inline(always)]
-	fn maximum_sequence_number(&self, SND: &TransmissionControlBlockSend) -> WrappingSequenceNumber
-	{
-		// RFC 5681 Section 2: "RECEIVER WINDOW (rwnd): The most recently advertised receiver window".
-		SND.UNA_less_one() + min(self.congestion_window(), SND.rwnd())
-	}
-	
 	/// RFC 5681 Section 3.2 Paragraph 2: "... duplicate ACKs (as defined in section 2, without any intervening ACKs which move SND.UNA)".
+	#[allow(non_snake_case)]
 	#[inline(always)]
-	pub(crate) fn increment_duplicate_acknowledgments_received_without_any_intervening_acknwoledgments_which_moved_SND_UNA(&mut self)
+	pub fn increment_duplicate_acknowledgments_received_without_any_intervening_acknwoledgments_which_moved_SND_UNA(&mut self)
 	{
 		self.number_of_duplicate_acknowledgments_received_since_SND_UNA_advanced += 1;
 	}
 	
 	/// RFC 5681 Section 5.2 Paragraph 2 implies acknowledgments which DO move SND.UNA reset the duplicate acknowledgments count.
 	#[inline(always)]
-	pub(crate) fn reset_duplicate_acknowledgment_count(&mut self)
+	pub fn reset_duplicate_acknowledgment_count(&mut self)
 	{
 		self.number_of_duplicate_acknowledgments_received_since_SND_UNA_advanced = 0;
 	}
 	
+	/// When was data last (initially) sent?
+	///
+	/// Should not be updated for re-transmitted data.
+	///
+	/// `SYN` and `FIN` are considered data for the purposes of this.
 	#[inline(always)]
-	pub(crate) fn last_sent_data_at(&mut self, now: MonotonicMillisecondTimestamp)
+	pub fn last_sent_data_at(&mut self, now: MonotonicMillisecondTimestamp)
 	{
 		self.last_sent_data_at = now
 	}
@@ -185,7 +202,7 @@ impl CongestionControl
 	/// ...
 	/// TCP SHOULD set cwnd to no more than RW (the restart window) before beginning transmission if the TCP has not sent data in an interval exceeding the retransmission timeout".
 	#[inline(always)]
-	pub(crate) fn reset_congestion_window_to_restart_window_if_no_data_sent_for_an_interval_exceeding_the_retransmission_time_out(&mut self, explicit_congestion_notification_state: Option<&mut ExplicitCongestionNotificationState>, now: MonotonicMillisecondTimestamp, retransmission_time_out: MillisecondDuration)
+	pub fn reset_congestion_window_to_restart_window_if_no_data_sent_for_an_interval_exceeding_the_retransmission_time_out(&mut self, explicit_congestion_notification_state: Option<&mut ExplicitCongestionNotificationState>, now: MonotonicMillisecondTimestamp, retransmission_time_out: MillisecondDuration)
 	{
 		debug_assert!(self.last_sent_data_at >= now, "self.last_sent_data_at '{}' is less than now '{}'", self.last_sent_data_at, now);
 		
@@ -197,7 +214,7 @@ impl CongestionControl
 	
 	/// RFC 5681 Section 3.1 Page 8 Paragraph 2: "Furthermore, upon a timeout cwnd MUST be set to no more than the loss window, LW, which equals 1 full-sized segment (regardless of the value of IW).
 	/// Therefore, after retransmitting the dropped segment the TCP sender uses the slow start algorithm to increase the window from 1 full-sized segment to the new value of ssthresh, at which point congestion avoidance again takes over".
-	pub(crate) fn reset_congestion_window_to_loss_window_because_retransmission_timed_out(&mut self, explicit_congestion_notification_state: Option<&mut ExplicitCongestionNotificationState>)
+	pub fn reset_congestion_window_to_loss_window_because_retransmission_timed_out(&mut self, explicit_congestion_notification_state: Option<&mut ExplicitCongestionNotificationState>)
 	{
 		self.reset_congestion_window_to_loss_window(explicit_congestion_notification_state);
 	}
@@ -209,22 +226,25 @@ impl CongestionControl
 	#[inline(always)]
 	fn reset_congestion_window_to_restart_window(&mut self, explicit_congestion_notification_state: Option<&mut ExplicitCongestionNotificationState>)
 	{
-		self.set_congestion_window(self.restart_window(), explicit_congestion_notification_state)
+		let restart_window = self.restart_window();
+		self.set_congestion_window(restart_window, explicit_congestion_notification_state)
 	}
 	
 	#[inline(always)]
 	fn reset_congestion_window_to_loss_window(&mut self, explicit_congestion_notification_state: Option<&mut ExplicitCongestionNotificationState>)
 	{
-		self.set_congestion_window(self.loss_window(), explicit_congestion_notification_state)
+		let loss_window = self.loss_window();
+		self.set_congestion_window(loss_window, explicit_congestion_notification_state)
 	}
 	
 	/// RFC 5681 Section 2: "RESTART WINDOW (RW): The restart window is the size of the congestion window (cwnd) after a TCP restarts transmission after an idle period (if the slow start algorithm is used ...)".
 	///
 	/// RFC 5681 Section 4.1: "For the purposes of this standard, we define RW = min(IW,cwnd)".
+	#[allow(non_camel_case_types)]
 	#[inline(always)]
 	fn restart_window(&self) -> u32
 	{
-		let IW = self.initial_congestion_window_algorithm.compute_initial_window(self.sender_maximum_segment_size);
+		#[allow(non_snake_case)] let IW = self.initial_congestion_window_algorithm.compute_initial_window(self.sender_maximum_segment_size);
 		
 		min(IW, self.congestion_window())
 	}
@@ -239,6 +259,8 @@ impl CongestionControl
 	}
 	
 	/// RFC 5681 Section 2: "INITIAL WINDOW (IW): The initial window is the size of the sender's congestion window after the three-way handshake is completed".
+	///
+	// TODO: Hmmm... is this not needed after being idle?
 	#[inline(always)]
 	fn initial_window(&self) -> u32
 	{

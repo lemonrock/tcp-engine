@@ -46,11 +46,11 @@ impl<TCBA: TransmissionControlBlockAbstractions> AlarmBehaviour<TCBA> for Retran
 impl<TCBA: TransmissionControlBlockAbstractions> RetransmissionAndZeroWindowProbeAlarmBehaviour<TCBA>
 {
 	#[inline(always)]
-	pub(crate) fn new<'a>(cached_congestion_data: &Ref<'a, CachedCongestionData>, is_for_non_synchronized_state: bool) -> Self
+	pub(crate) fn new<'a>(recent_connection_data: &RecentConnectionData, is_for_non_synchronized_state: bool) -> Self
 	{
 		Self
 		{
-			retransmission_time_out_data: cached_congestion_data.retransmission_time_out_data(),
+			retransmission_time_out_data: recent_connection_data.retransmission_time_out_data(),
 		}
 	}
 	

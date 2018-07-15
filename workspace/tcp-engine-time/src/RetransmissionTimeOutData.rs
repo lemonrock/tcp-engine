@@ -60,11 +60,11 @@ impl RetransmissionTimeOutData
 	/// RFC 6298 Section 2.4 here ("A maximum value MAY be placed on RTO provided it is at least 60 seconds").
 	const MaximumRetransmissionTimeOut: MillisecondDuration = MillisecondDuration::OneMinute;
 	
-	// This is the reverse of the logic in `compute_retransmission_time_out()`.
-	const InitialSmoothedRoundTripTime: MillisecondDuration = MillisecondDuration(Self::MinimumRetransmissionTimeOut.0 / 3);
+	/// This is the reverse of the logic in `compute_retransmission_time_out()`.
+	pub const InitialSmoothedRoundTripTime: MillisecondDuration = MillisecondDuration(Self::MinimumRetransmissionTimeOut.0 / 3);
 	
-	// This matches the logic in `first_measurement_of_round_trip_time_made()`.
-	const InitialRoundTripTimeVariance: MillisecondDuration = MillisecondDuration(Self::InitialSmoothedRoundTripTime.0 / 2);
+	/// This matches the logic in `first_measurement_of_round_trip_time_made()`.
+	pub const InitialRoundTripTimeVariance: MillisecondDuration = MillisecondDuration(Self::InitialSmoothedRoundTripTime.0 / 2);
 	
 	// RFC 6298 Section 5.7: "If the timer expires awaiting the ACK of a SYN segment and the TCP implementation is using an RTO less than 3 seconds, the RTO MUST be re-initialized to 3 seconds when data transmission begins (i.e., after the three-way handshake completes)."
 	//

@@ -2,8 +2,9 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
+/// Managed explicit congenstion notification state.
 #[derive(Default, Debug)]
-struct ExplicitCongestionNotificationState
+pub struct ExplicitCongestionNotificationState
 {
 	/// This value should be `true` after a data packet (not a retransmission) has been received with a ECN code point of `CE`.
 	///
@@ -37,38 +38,44 @@ struct ExplicitCongestionNotificationState
 
 impl ExplicitCongestionNotificationState
 {
+	#[allow(missing_docs)]
 	#[inline(always)]
-	pub(crate) fn incoming_data_packet_had_congestion_window_reduced_flag_set(&self)
+	pub fn incoming_data_packet_had_congestion_window_reduced_flag_set(&mut self)
 	{
 		self.acknowledgments_should_explicit_congestion_echo = false
 	}
 	
+	#[allow(missing_docs)]
 	#[inline(always)]
-	pub(crate) fn congestion_was_encountered(&self)
+	pub fn congestion_was_encountered(&mut self)
 	{
 		self.acknowledgments_should_explicit_congestion_echo = true
 	}
 	
+	#[allow(missing_docs)]
 	#[inline(always)]
-	pub(crate) fn acknowledgments_should_explicit_congestion_echo(&self) -> bool
+	pub fn acknowledgments_should_explicit_congestion_echo(&self) -> bool
 	{
 		self.acknowledgments_should_explicit_congestion_echo
 	}
 	
+	#[allow(missing_docs)]
 	#[inline(always)]
-	pub(crate) fn incoming_data_packet_had_explicit_congestion_echo_flag_set(&self)
+	pub fn incoming_data_packet_had_explicit_congestion_echo_flag_set(&mut self)
 	{
 		self.congestion_window_was_reduced_so_set_congestion_window_reduced_on_first_new_data_packet = true
 	}
 	
+	#[allow(missing_docs)]
 	#[inline(always)]
-	pub(crate) fn reduced_congestion_window(&self)
+	pub fn reduced_congestion_window(&mut self)
 	{
 		self.congestion_window_was_reduced_so_set_congestion_window_reduced_on_first_new_data_packet = true
 	}
 	
+	#[allow(missing_docs)]
 	#[inline(always)]
-	pub(crate) fn set_congestion_window_reduced_on_first_new_data_packet_and_turn_off_signalling(&self) -> bool
+	pub fn set_congestion_window_reduced_on_first_new_data_packet_and_turn_off_signalling(&mut self) -> bool
 	{
 		let result = self.congestion_window_was_reduced_so_set_congestion_window_reduced_on_first_new_data_packet;
 		self.congestion_window_was_reduced_so_set_congestion_window_reduced_on_first_new_data_packet = false;

@@ -19,4 +19,7 @@ version = "0.0.0"
 
 [dependencies]
 hyper-thread-random = "^0.4"
+tcp-engine-collections = { path = "../tcp-engine-collections", version = "0.0.0" }
+tcp-engine-internet-protocol = { path = "../tcp-engine-internet-protocol", version = "0.0.0" }
 tcp-engine-network-endian = { path = "../tcp-engine-network-endian", version = "0.0.0" }
+tcp-engine-time = { path = "../tcp-engine-time", version = "0.0.0" }

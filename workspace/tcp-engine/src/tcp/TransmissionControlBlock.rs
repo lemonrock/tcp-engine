@@ -45,6 +45,37 @@ pub(crate) struct TransmissionControlBlock<TCBA: TransmissionControlBlockAbstrac
 	congestion_control: CongestionControl,
 }
 
+impl<TCBA: TransmissionControlBlockAbstractions> ConnectionIdentification<TCBA::Address> for TransmissionControlBlock<TCBA>
+{
+	#[inline(always)]
+	fn remote_internet_protocol_address(&self) -> &TCBA::Address
+	{
+		self.key.remote_internet_protocol_address()
+	}
+	
+	#[inline(always)]
+	fn remote_port_local_port(&self) -> RemotePortLocalPort
+	{
+		self.key.remote_port_local_port()
+	}
+	
+	#[inline(always)]
+	fn we_are_the_listener(&self) -> bool
+	{
+		self.we_are_the_listener
+	}
+}
+
+impl<TCBA: TransmissionControlBlockAbstractions> RecentConnectionDataProvider<TCBA::Address> for TransmissionControlBlock<TCBA>
+{
+	#[inline(always)]
+	fn recent_connection_data(&self) -> (&TCBA::Address, RecentConnectionData)
+	{
+		let (smoothed_round_trip_time, round_trip_time_variance) = self.retransmission_and_zero_window_probe_alarm_behaviour_reference().smoothed_round_trip_time_and_round_trip_time_variance();
+		(self.remote_internet_protocol_address(), RecentConnectionData::new(smoothed_round_trip_time, round_trip_time_variance, self.ssthresh()))
+	}
+}
+
 /// New connections and related functionality.
 impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 {
@@ -327,28 +358,6 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 				// TODO: Error connection closing
 			}
 		}
-	}
-}
-
-/// Connection Identification ('key').
-impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
-{
-	#[inline(always)]
-	pub(crate) fn remote_internet_protocol_address(&self) -> &TCBA::Address
-	{
-		self.key.remote_internet_protocol_address()
-	}
-	
-	#[inline(always)]
-	pub(crate) fn remote_port_local_port(&self) -> RemotePortLocalPort
-	{
-		self.key.remote_port_local_port()
-	}
-	
-	#[inline(always)]
-	pub(crate) fn we_are_the_listener(&self) -> bool
-	{
-		self.we_are_the_listener
 	}
 }
 
@@ -645,16 +654,6 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 		{
 			explicit_congestion_notification_state.reduced_congestion_window()
 		}
-	}
-}
-
-impl<TCBA: TransmissionControlBlockAbstractions> RecentConnectionDataProvider<TCBA::Address> for TransmissionControlBlock<TCBA>
-{
-	#[inline(always)]
-	fn recent_connection_data(&self) -> (&TCBA::Address, RecentConnectionData)
-	{
-		let (smoothed_round_trip_time, round_trip_time_variance) = self.retransmission_and_zero_window_probe_alarm_behaviour_reference().smoothed_round_trip_time_and_round_trip_time_variance();
-		(self.remote_internet_protocol_address(), RecentConnectionData::new(smoothed_round_trip_time, round_trip_time_variance, self.ssthresh()))
 	}
 }
 

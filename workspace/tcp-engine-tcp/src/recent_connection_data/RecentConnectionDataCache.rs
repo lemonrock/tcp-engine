@@ -31,7 +31,7 @@ impl<Address: InternetProtocolAddress> RecentConnectionDataCache<Address>
 	///
 	/// Borrowed value must be discarded before `update_recent_connection_data()` is called otherwise an undetectable borrow error will occur.
 	#[inline(always)]
-	pub fn recent_connection_data(&self, now: MonotonicMillisecondTimestamp, remote_internet_protocol_address: &Address) -> &RecentConnectionData
+	pub fn get(&self, now: MonotonicMillisecondTimestamp, remote_internet_protocol_address: &Address) -> &RecentConnectionData
 	{
 		static Default: RecentConnectionData = RecentConnectionData::Default;
 		
@@ -40,9 +40,10 @@ impl<Address: InternetProtocolAddress> RecentConnectionDataCache<Address>
 	
 	/// Update recent connection data.
 	#[inline(always)]
-	pub fn update_recent_connection_data(&self, transmission_control_block: &impl RecentConnectionDataProvider<Address>, now: MonotonicMillisecondTimestamp)
+	pub fn update(&self, transmission_control_block: &impl RecentConnectionDataProvider<Address>, now: MonotonicMillisecondTimestamp)
 	{
-		let (remote_internet_protocol_address, recent_connection_data) = transmission_control_block.recent_connection_data();
+		let remote_internet_protocol_address = transmission_control_block.remote_internet_protocol_address();
+		let recent_connection_data = transmission_control_block.recent_connection_data();
 		
 		if let Some(cached_connection_data) = self.cache().get_mut(now, remote_internet_protocol_address)
 		{

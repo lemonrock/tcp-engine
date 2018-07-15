@@ -11,7 +11,7 @@ pub struct Interface<TCBA: TransmissionControlBlockAbstractions>
 	local_internet_protocol_address: TCBA::Address,
 	transmission_control_blocks: RefCell<BoundedHashMap<TransmissionControlBlockKey<TCBA::Address>, TransmissionControlBlock<TCBA>>>,
 	transmission_control_blocks_send_buffers: Rc<MagicRingBuffersArena>,
-	recently_closed_outbound_client_connection_source_ports: RefCell<LeastRecentlyUsedCacheWithExpiry<(TCBA::Address, u16), PortBitSet>>,
+	source_port_chooser: SourcePortChooser<TCBA::Address>,
 	recent_connections_congestion_data: RecentConnectionDataCache<TCBA::Address>,
 	initial_sequence_number_generator: InitialSequenceNumberGenerator,
 	syn_cookie_protection: SynCookieProtection,
@@ -28,8 +28,6 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 	#[inline(always)]
 	pub fn new(transmission_control_block_abstractions: TCBA, check_sum_layering: CheckSumLayering, listening_server_port_combination_validity: PortCombinationValidity, local_internet_protocol_address: TCBA::Address, transmission_control_blocks_map_capacity: usize, maximum_recently_closed_outbound_client_connections_source_ports: usize, maximum_recent_connections_capacity: usize, expiry_period: MillisecondDuration, authentication_pre_shared_secret_keys: AuthenticationPreSharedSecretKeys) -> Self
 	{
-		const OutboundConnectionExpiryPeriodIsRfc793DoubleMaximumSegmentLifetime: MillisecondDuration = MillisecondDuration::TwoMinutes * 2;
-		
 		const SendBufferSize: usize = 256 * 1024;
 		
 		let now = Tick::now();
@@ -42,7 +40,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 			local_internet_protocol_address,
 			transmission_control_blocks: RefCell::new(BoundedHashMap::new(transmission_control_blocks_map_capacity)),
 			transmission_control_blocks_send_buffers: MagicRingBuffersArena::new(transmission_control_blocks_map_capacity, SendBufferSize),
-			recently_closed_outbound_client_connection_source_ports: RefCell::new(LeastRecentlyUsedCacheWithExpiry::new(maximum_recently_closed_outbound_client_connections_source_ports, OutboundConnectionExpiryPeriodIsRfc793DoubleMaximumSegmentLifetime)),
+			source_port_chooser: SourcePortChooser::new(maximum_recently_closed_outbound_client_connections_source_ports),
 			recent_connections_congestion_data: RecentConnectionDataCache::new(maximum_recent_connections_capacity, expiry_period),
 			initial_sequence_number_generator: InitialSequenceNumberGenerator::default(),
 			syn_cookie_protection: SynCookieProtection::new(now),
@@ -290,16 +288,16 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 {
 	#[inline(always)]
-	pub(crate) fn new_transmission_control_block_for_outgoing_client_connection(&self, remote_internet_protocol_address: TCBA::Address, remote_port: u16, now: MonotonicMillisecondTimestamp, explicit_congestion_notification_supported: bool, connection_time_out: MillisecondDuration) -> Result<(), ()>
+	pub(crate) fn new_transmission_control_block_for_outgoing_client_connection(&self, remote_internet_protocol_address: TCBA::Address, remote_port: NetworkEndianU16, now: MonotonicMillisecondTimestamp, explicit_congestion_notification_supported: bool, connection_time_out: MillisecondDuration) -> Result<(), ()>
 	{
 		if self.transmission_control_blocks_at_maximum_capacity()
 		{
 			return Err(())
 		}
 		
-		let local_port = self.pick_a_source_port_for_a_new_outgoing_connection(&remote_internet_protocol_address, remote_port)?;
+		let local_port = self.source_port_chooser.pick_a_source_port_for_a_new_outgoing_connection(&remote_internet_protocol_address, remote_port, &self.listening_server_port_combination_validity)?;
 		
-		let remote_port_local_port = RemotePortLocalPort::from_remote_port_local_port(NetworkEndianU16::from_native_endian(remote_port), NetworkEndianU16::from_native_endian(local_port));
+		let remote_port_local_port = RemotePortLocalPort::from_remote_port_local_port(remote_port, local_port);
 		
 		let (packet, our_tcp_segment) = self.create_for_tcp_segment(&remote_internet_protocol_address)?;
 		
@@ -317,50 +315,6 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		xxxx;
 		
 		Ok(())
-	}
-	
-	#[inline(always)]
-	fn pick_a_source_port_for_a_new_outgoing_connection(&self, remote_internet_protocol_address: &TCBA::Address, remote_port: u16) -> Result<u16, ()>
-	{
-		let mut recently_closed_client_connections = LeastRecentlyUsedCacheWithExpiry::new(maximum_capacity, OutboundConnectionExpiryPeriodIsRfc793DoubleMaximumSegmentLifetime);
-		
-		let valid_local_ports = &self.listening_server_port_combination_validity.valid_local_ports;
-		
-		// RFC 6056: Section 3.2: "... ephemeral port selection algorithms should use the whole range 1024-65535.
-		// ...
-		// port numbers that may be needed for providing a particular service at the local host SHOULD NOT be included in the pool of port numbers available for ephemeral port randomization".
-		let recently_closed_client_connection_source_ports = self.recently_closed_outbound_client_connection_source_ports.borrow_mut();
-		
-		let key = (*remote_internet_protocol_address, remote_port);
-		
-		if let Some(port_bit_set) = recently_closed_client_connection_source_ports.get_mut(&key)
-		{
-			let source_port = match source_ports_port_bit_set.union(valid_local_ports).find_unused_securely_randomly(1024)
-			{
-				None => return Err(()),
-				Some(source_port) => source_port,
-			};
-			
-			source_ports_port_bit_set.insert(source_port);
-			
-			Ok(source_port)
-		}
-		else
-		{
-			let mut source_ports_port_bit_set = PortBitSet::new_with_rfc_6056_ephemeral_ports_available();
-			
-			let source_port = match source_ports_port_bit_set.union(valid_local_ports).find_unused_securely_randomly(1024)
-			{
-				None => return Err(()),
-				Some(source_port) => source_port,
-			};
-			
-			source_ports_port_bit_set.insert(source_port);
-			
-			recently_closed.insert(key, source_ports_port_bit_set);
-			
-			Ok(source_port)
-		}
 	}
 	
 	#[inline(always)]
@@ -388,6 +342,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		let transmission_control_block = self.transmission_control_blocks.borrow_mut().remove(key);
 		
 		self.update_recent_connection_data(&transmission_control_block, now);
+		self.source_port_chooser.update(&transmission_control_block, now);
 		transmission_control_block.destroying(self, interface.alarms())
 	}
 	
@@ -436,13 +391,13 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 	#[inline(always)]
 	pub(crate) fn recent_connection_data<'a>(&self, now: MonotonicMillisecondTimestamp, remote_internet_protocol_address: &TCBA::Address) -> Ref<'a, RecentConnectionData>
 	{
-		self.recent_connections_congestion_data.recent_connection_data(now, remote_internet_protocol_address)
+		self.recent_connections_congestion_data.get(now, remote_internet_protocol_address)
 	}
 	
 	#[inline(always)]
 	fn update_recent_connection_data(&self, transmission_control_block: &TransmissionControlBlock<TCBA>, now: MonotonicMillisecondTimestamp)
 	{
-		self.recent_connections_congestion_data.update_recent_connection_data(transmission_control_block, now)
+		self.recent_connections_congestion_data.update(transmission_control_block, now)
 	}
 }
 

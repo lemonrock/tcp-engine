@@ -2,10 +2,25 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
-/// Provides recent connection data for this connection.
-pub trait RecentConnectionDataProvider<Address: InternetProtocolAddress>: ConnectionIdentification<Address>
+/// Connection Identification.
+pub trait ConnectionIdentification<Address: InternetProtocolAddress>
 {
-	/// Provides recent connection data for this connection.
+	/// Remote internet protocol address.
 	#[inline(always)]
-	fn recent_connection_data(&self) -> RecentConnectionData;
+	fn remote_internet_protocol_address(&self) -> &Address;
+	
+	/// Remote port-local port combination.
+	#[inline(always)]
+	fn remote_port_local_port(&self) -> RemotePortLocalPort;
+	
+	/// Are we the listener (ie server, not an outbound client connection).
+	#[inline(always)]
+	fn we_are_the_listener(&self) -> bool;
+	
+	#[doc(hidden)]
+	#[inline(always)]
+	fn we_are_the_client(&self) -> bool
+	{
+		!self.we_are_the_listener()
+	}
 }

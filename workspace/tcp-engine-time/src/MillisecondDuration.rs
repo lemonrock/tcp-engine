@@ -172,6 +172,9 @@ impl MillisecondDuration
 	/// Two minutes.
 	pub const TwoMinutes: Self = Self::from_minutes(2);
 	
+	/// Four minutes.
+	pub const FourMinutes: Self = Self::from_minutes(4);
+	
 	/// Five minutes.
 	pub const FiveMinutes: Self = Self::from_minutes(5);
 	

@@ -79,8 +79,16 @@ impl MaximumSegmentSize
 	pub const InternetProtocolVersion6Minimum: Self = MaximumSegmentSize(NetworkEndianU16::from_network_endian([0x03, 0xD8]));
 	
 	/// New instance.
+	#[inline(always)]
 	pub const fn new(value: NetworkEndianU16) -> Self
 	{
 		MaximumSegmentSize(value)
+	}
+	
+	/// To native endian.
+	#[inline(always)]
+	pub fn to_native_endian(self) -> u16
+	{
+		self.0.to_native_endian()
 	}
 }

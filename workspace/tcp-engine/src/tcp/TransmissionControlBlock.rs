@@ -80,25 +80,17 @@ impl<TCBA: TransmissionControlBlockAbstractions> RecentConnectionDataProvider<TC
 impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 {
 	#[inline(always)]
-	pub(crate) fn new_for_closed_to_synchronize_sent(interface: &Interface<TCBA>, remote_internet_protocol_address: TCBA::Address, remote_port_local_port: RemotePortLocalPort, now: MonotonicMillisecondTimestamp, ISS: WrappingSequenceNumber, explicit_congestion_notification_supported: bool)
+	pub(crate) fn new_for_closed_to_synchronize_sent(key: TransmissionControlBlockKey, now: MonotonicMillisecondTimestamp, maximum_segment_size_to_send_to_remote: u16, recent_connection_data: &RecentConnectionData, md5_authentication_key: Option<Rc<Md5PreSharedSecretKey>>, magic_ring_buffer: MagicRingBuffer, congestion_control: CongestionControl, ISS: WrappingSequenceNumber, explicit_congestion_notification_supported: bool)
 	{
-		let maximum_segment_size = interface.our_current_maximum_segment_size_without_fragmentation(&remote_internet_protocol_address);
-		
-		let recent_connection_data = interface.recent_connection_data(&remote_internet_protocol_address);
-		
-		let key = TransmissionControlBlockKey::for_client(remote_internet_protocol_address, for_client);
-		
-		let md5_authentication_key = interface.find_md5_authentication_key(remote_internet_protocol_address, remote_port_local_port).map(|key_reference| key_reference.clone());
-		
 		Self
 		{
 			events_receiver: TCBA::EventReceiverCreator::create(&key),
 			key,
 			state: State::SynchronizeSent,
 			RCV: TransmissionControlBlockReceive::new_for_closed_to_synchronize_sent(),
-			SND: TransmissionControlBlockSend::new_for_closed_to_synchronize_sent(interface, now, ISS),
+			SND: TransmissionControlBlockSend::new_for_closed_to_synchronize_sent(magic_ring_buffer, now, ISS),
 			keep_alive_alarm: Default::default(),
-			retransmission_and_zero_window_probe_alarm: Alarm::new(RetransmissionAndZeroWindowProbeAlarmBehaviour::new(&recent_connection_data, true)),
+			retransmission_and_zero_window_probe_alarm: Alarm::new(RetransmissionAndZeroWindowProbeAlarmBehaviour::new(recent_connection_data, true)),
 			user_time_out_alarm: Default::default(),
 			timestamping: Timestamping::new_for_closed_to_synchronize_sent(),
 			explicit_congestion_notification_state: if explicit_congestion_notification_supported
@@ -110,23 +102,17 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 				None
 			},
 			we_are_the_listener: false,
-			maximum_segment_size_to_send_to_remote: maximum_segment_size,
+			maximum_segment_size_to_send_to_remote,
 			selective_acknowledgments_permitted: false,
 			md5_authentication_key,
-			congestion_control: CongestionControl::new(Self::InitialCongestionWindowAlgorithm, now, maximum_segment_size, &recent_connection_data),
+			congestion_control,
 		}
 	}
 	
 	#[inline(always)]
-	pub(crate) fn new_for_sychronize_received_to_established(interface: &Interface<TCBA>, source_internet_protocol_address: &TCBA::Address, SEG: &ParsedTcpSegment, tcp_options: &TcpOptions, parsed_syncookie: ParsedSynCookie, now: MonotonicMillisecondTimestamp, md5_authentication_key: Option<Rc<Md5PreSharedSecretKey>>) -> Self
+	pub(crate) fn new_for_sychronize_received_to_established(key: TransmissionControlBlockKey, now: MonotonicMillisecondTimestamp, maximum_segment_size_to_send_to_remote: u16, recent_connection_data: &RecentConnectionData, md5_authentication_key: Option<Rc<Md5PreSharedSecretKey>>, magic_ring_buffer: MagicRingBuffer, congestion_control: CongestionControl, SEG: &ParsedTcpSegment, tcp_options: &TcpOptions, parsed_syncookie: ParsedSynCookie) -> Self
 	{
-		let remote_internet_protocol_address = source_internet_protocol_address;
-		
-		let recent_connection_data = interface.recent_connection_data(now, &remote_internet_protocol_address);
-		
-		let key = TransmissionControlBlockKey::from_incoming_segment(remote_internet_protocol_address, SEG.SEG);
-		
-		let SEG_WND = SEG.WND();
+		let SEG_WND = SEG.WND;
 		
 		let (RCV_WND, RCV_Wind_Shift, SND_WND, SND_Wind_Shift) = match parsed_syncookie.their_window_scale
 		{
@@ -146,10 +132,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 		
 		let RCV_NXT = IRS + 1;
 		
-		let maximum_segment_size = Self::maximum_segment_size_to_send_to_remote_u16(parsed_syncookie.their_maximum_segment_size, interface, remote_internet_protocol_address);
 		let selective_acknowledgments_permitted = parsed_syncookie.their_selective_acknowledgment_permitted;
-		let timestamping = Timestamping::new_for_sychronize_received_to_established(tcp_options, now, RCV_NXT);
-		let supports_timestamping = timestamping.is_some();
 		
 		Self
 		{
@@ -157,11 +140,11 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 			key,
 			state: State::Established,
 			RCV: TransmissionControlBlockReceive::new_for_sychronize_received_to_established(RCV_NXT, RCV_WND, RCV_Wind_Shift),
-			SND: TransmissionControlBlockSend::new_for_sychronize_received_to_established(interface, now, ISS, IRS, SND_WND, SND_Wind_Shift),
+			SND: TransmissionControlBlockSend::new_for_sychronize_received_to_established(magic_ring_buffer, now, ISS, IRS, SND_WND, SND_Wind_Shift),
 			keep_alive_alarm: Default::default(),
-			retransmission_and_zero_window_probe_alarm: Alarm::new(RetransmissionAndZeroWindowProbeAlarmBehaviour::new(&recent_connection_data, false)),
+			retransmission_and_zero_window_probe_alarm: Alarm::new(RetransmissionAndZeroWindowProbeAlarmBehaviour::new(recent_connection_data, false)),
 			user_time_out_alarm: Default::default(),
-			timestamping,
+			timestamping: Timestamping::new_for_sychronize_received_to_established(tcp_options, now, RCV_NXT),
 			explicit_congestion_notification_state: if parsed_syncookie.explicit_congestion_notification_supported
 			{
 				Some(Default::default())
@@ -171,10 +154,10 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 				None
 			},
 			we_are_the_listener: true,
-			maximum_segment_size_to_send_to_remote: maximum_segment_size,
+			maximum_segment_size_to_send_to_remote,
 			selective_acknowledgments_permitted,
 			md5_authentication_key,
-			congestion_control: CongestionControl::new(Self::InitialCongestionWindowAlgorithm, now, maximum_segment_size, &recent_connection_data),
+			congestion_control,
 		}
 	}
 	
@@ -361,29 +344,6 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	}
 }
 
-/// Maximum segment size.
-impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
-{
-	#[inline(always)]
-	pub(crate) fn maximum_segment_size_to_send_to_remote<TCBA: TransmissionControlBlockAbstractions>(their_maximum_segment_size_options: Option<MaximumSegmentSizeOption>, interface: &Interface<TCBA>, remote_internet_protocol_address: &TCBA::Address) -> u16
-	{
-		let maximum_segment_size_option = match their_maximum_segment_size_options
-		{
-			None => TCBA::Address::DefaultMaximumSegmentSizeIfNoneSpecified,
-			
-			Some(their_maximum_segment_size_option) => their_maximum_segment_size_option.0,
-		};
-		
-		Self::maximum_segment_size_to_send_to_remote_u16(maximum_segment_size_option.to_native_endian(), interface, remote_internet_protocol_address)
-	}
-	
-	#[inline(always)]
-	fn maximum_segment_size_to_send_to_remote_u16<TCBA: TransmissionControlBlockAbstractions>(their_maximum_segment_size: u16, interface: &Interface<TCBA>, remote_internet_protocol_address: &TCBA::Address) -> u16
-	{
-		min(their_maximum_segment_size, interface.our_current_maximum_segment_size_without_fragmentation(remote_internet_protocol_address))
-	}
-}
-
 /// State change.
 impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 {
@@ -405,7 +365,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 			
 			Established | FinishWait1 | FinishWait2 | CloseWait =>
 			{
-				interface.send_reset_without_packet_to_reuse(self, now, transmission_control_block.SND.NXT);
+				interface.send_reset_without_packet_to_reuse(self, now, self.SND.NXT());
 				self.aborted(interface, now)
 			}
 			
@@ -562,8 +522,6 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 /// Congestion Control.
 impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 {
-	const InitialCongestionWindowAlgorithm: InitialCongestionWindowAlgorithm = InitialCongestionWindowAlgorithm::RFC_6928;
-	
 	#[inline(always)]
 	pub(crate) fn increment_duplicate_acknowledgments_received_without_any_intervening_acknwoledgments_which_moved_SND_UNA(&mut self)
 	{
@@ -998,6 +956,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	pub(crate) fn enter_state_established(&mut self)
 	{
 		self.retransmission_time_out_entering_established_state();
+		self.congestion_control.entering_established_state(self.maximum_segment_size_to_send_to_remote);
 		self.set_state(State::Established);
 		self.events_receiver.entered_state_established();
 	}

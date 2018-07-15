@@ -97,7 +97,7 @@ impl<'a, 'b, TCBA: 'a + 'b + TransmissionControlBlockAbstractions> ParsedTcpSegm
 			Err(()) => invalid!(SEG, "TCP Acknowledgment-like syncookie invalid (Reset <SEQ=SEG.ACK><CTL=RST> not sent)"),
 		};
 		
-		let transmission_control_block = interface.new_transmission_control_block_for_incoming_segment(TransmissionControlBlock::new_for_sychronize_received_to_established(interface, self.source_internet_protocol_address, SEG, &self.tcp_options, parsed_syncookie, self.now, md5_authentication_key.map(|key_reference| key_reference.clone())));
+		let transmission_control_block = interface.new_transmission_control_block_for_incoming_segment(&self.source_internet_protocol_address, self, &self.tcp_options, parsed_syncookie, self.now, md5_authentication_key);
 		
 		self.process_tcp_segment_when_state_is_other_than_listen_or_synchronize_received(transmission_control_block)
 	}
@@ -154,19 +154,14 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 		match SEG.syn_ack_fin_rst_ece_cwr_only_flags()
 		{
 			// RFC 5961 Section 3.2: "If the RST bit is set and the sequence number exactly matches the next expected sequence number (RCV.NXT), then TCP MUST reset the connection".
-			Flags::ResetAcknowledgment =>
+			Flags::ResetAcknowledgment => if transmission_control_block.SND.seg_ack_equals_snd_nxt()
 			{
-				let SND = &transmission_control_block.SND;
-				
-				if SEG.ACK == SND.NXT
-				{
-					transmission_control_block.aborted(self.interface, self.now)
-				}
-				else
-				{
-					invalid!(SEG, "TCP ResetAcknowledgment in violation of RFC 5961, possible RST attack")
-				}
+				transmission_control_block.aborted(self.interface, self.now)
 			}
+			else
+			{
+				invalid!(SEG, "TCP ResetAcknowledgment in violation of RFC 5961, possible RST attack")
+			},
 			
 			// Processing Incoming Segments 3.1.1, 3.4.1
 			Flags::SynchronizeAcknowledgment =>
@@ -482,7 +477,7 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 		
 		transmission_control_block.RCV.initialize_NXT(IRS);
 		
-		transmission_control_block.maximum_segment_size_to_send_to_remote = TransmissionControlBlock::maximum_segment_size_to_send_to_remote(self.tcp_options.maximum_segment_size, self.interface, self.source_internet_protocol_address);
+		transmission_control_block.maximum_segment_size_to_send_to_remote = self.interface.maximum_segment_size_to_send_to_remote(self.tcp_options.maximum_segment_size, self.source_internet_protocol_address);
 		
 		// Processing Incoming Segments 3.4.1.1.
 		match self.tcp_options.window_scale
@@ -517,7 +512,7 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 		
 		transmission_control_block.enter_state_established();
 		
-		self.interface.send_final_acknowledgment_of_three_way_handshake(self.reuse_packet(), transmission_control_block, self.now, Flags::Acknowledgment, transmission_control_block.SND.NXT, transmission_control_block.RCV.NXT());
+		self.interface.send_final_acknowledgment_of_three_way_handshake(self.reuse_packet(), transmission_control_block, self.now, Flags::Acknowledgment, transmission_control_block.SND.NXT(), transmission_control_block.RCV.NXT());
 		
 		self.processing_incoming_segments_4_6_check_the_urg_bit();
 		
@@ -709,7 +704,7 @@ RFC1122                  TRANSPORT LAYER -- TCP             October 1989
 		
 		// Send an acknowledgment of the form: <SEQ=SND.NXT><ACK=RCV.NXT><CTL=ACK>.
 		// This acknowledgment should be piggybacked on a segment being transmitted if possible without incurring undue delay.
-		self.interface.send_acknowledgment(self.reuse_packet(), transmission_control_block, self.now, Flags::Acknowledgment, transmission_control_block.SND.NXT, transmission_control_block.RCV.NXT())
+		self.interface.send_acknowledgment(self.reuse_packet(), transmission_control_block, self.now, Flags::Acknowledgment, transmission_control_block.SND.NXT(), transmission_control_block.RCV.NXT())
 		
 		// Please note the window management suggestions in section 3.7.
 	}

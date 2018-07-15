@@ -17,12 +17,16 @@ extern crate tcp_engine_ports;
 extern crate tcp_engine_tcp_domain;
 
 
+use ::std::cmp::min;
+use ::std::mem::size_of;
 use ::std::ptr::NonNull;
 use ::tcp_engine_internet_protocol::ExplicitCongestionNotification;
 use ::tcp_engine_internet_protocol::InternetProtocolAddress;
 use ::tcp_engine_network_endian::NetworkEndianU16;
 use ::tcp_engine_ports::*;
+use ::tcp_engine_tcp_domain::TcpFixedHeader;
 use ::tcp_engine_tcp_domain::TcpSegment;
+use ::tcp_engine_tcp_domain::tcp_options::MaximumSegmentSizeOption;
 
 
 include!("CheckSumLayering.rs");

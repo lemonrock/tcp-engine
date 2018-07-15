@@ -295,18 +295,27 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 			return Err(())
 		}
 		
-		let local_port = self.source_port_chooser.pick_a_source_port_for_a_new_outgoing_connection(&remote_internet_protocol_address, remote_port, &self.listening_server_port_combination_validity)?;
-		
-		let remote_port_local_port = RemotePortLocalPort::from_remote_port_local_port(remote_port, local_port);
-		
 		let (packet, our_tcp_segment) = self.create_for_tcp_segment(&remote_internet_protocol_address)?;
 		
-		let ISS = interface.generate_initial_sequence_number(now, &remote_internet_protocol_address, remote_port_local_port);
-		
-		let transmission_control_block = TransmissionControlBlock::new_for_closed_to_synchronize_sent(self, remote_internet_protocol_address, remote_port_local_port, now, ISS, explicit_congestion_notification_supported);
-		
-		let transmission_control_blocks = self.transmission_control_blocks.borrow_mut();
-		let transmission_control_block = transmission_control_blocks.entry(transmission_control_block.key()).or_insert(transmission_control_block);
+		let transmission_control_block =
+		{
+			let remote_port_local_port =
+			{
+				let local_port = self.source_port_chooser.pick_a_source_port_for_a_new_outgoing_connection(&remote_internet_protocol_address, remote_port, &self.listening_server_port_combination_validity)?;
+				RemotePortLocalPort::from_remote_port_local_port(remote_port, local_port)
+			};
+			
+			let key = TransmissionControlBlockKey::for_client(remote_internet_protocol_address, remote_port_local_port);
+			let maximum_segment_size_to_send_to_remote = self.maximum_segment_size_without_fragmentation(&remote_internet_protocol_address);
+			let recent_connection_data = self.recent_connection_data(now, &remote_internet_protocol_address);
+			let md5_authentication_key = self.find_md5_authentication_key(&remote_internet_protocol_address, remote_port_local_port).map(|key_reference| key_reference.clone());
+			let magic_ring_buffer = self.allocate_a_send_buffer();
+			
+			let ISS = interface.generate_initial_sequence_number(now, &remote_internet_protocol_address, remote_port_local_port);
+			
+			TransmissionControlBlock::new_for_closed_to_synchronize_sent(key, now, maximum_segment_size_to_send_to_remote, recent_connection_data, md5_authentication_key, magic_ring_buffer, Self::congestion_control(now, maximum_segment_size_to_send_to_remote, recent_connection_data), ISS, explicit_congestion_notification_supported)
+		};
+		let transmission_control_block = self.add(transmission_control_block);
 		
 		self.send_synchronize(packet, our_tcp_segment, transmission_control_block, now);
 		
@@ -318,22 +327,45 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 	}
 	
 	#[inline(always)]
-	pub(crate) fn allocate_a_send_buffer(&self) -> MagicRingBuffer
+	pub(crate) fn new_transmission_control_block_for_incoming_segment(&self, source_internet_protocol_address: &TCBA::Address, SEG: &ParsedTcpSegment<TCBA>, tcp_options: &TcpOptions, parsed_syncookie: ParsedSynCookie, now: MonotonicMillisecondTimestamp, md5_authentication_key: Option<&Rc<Md5PreSharedSecretKey>>) -> &mut TransmissionControlBlock<TCBA>
 	{
-		MagicRingBuffersArena::allocate(&self.transmission_control_blocks_send_buffers)
-	}
-	
-	#[inline(always)]
-	pub(crate) fn new_transmission_control_block_for_incoming_segment(&self, transmission_control_block: TransmissionControlBlock<TCBA>)
-	{
-		let transmission_control_blocks = self.transmission_control_blocks.borrow_mut();
-		let transmission_control_block = transmission_control_blocks.entry(transmission_control_block.key()).or_insert(transmission_control_block);
+		debug_assert!(self.transmission_control_blocks_at_maximum_capacity(), "transmission_control_blocks_at_maximum_capacity should have already been checked");
+		
+		let transmission_control_block =
+		{
+			let remote_internet_protocol_address = source_internet_protocol_address;
+			
+			let key = TransmissionControlBlockKey::from_incoming_segment(*remote_internet_protocol_address, SEG.SEG);
+			let maximum_segment_size_to_send_to_remote = self.maximum_segment_size_to_send_to_remote_u16(parsed_syncookie.their_maximum_segment_size, remote_internet_protocol_address);
+			let recent_connection_data = self.recent_connection_data(now, remote_internet_protocol_address);
+			let md5_authentication_key = md5_authentication_key.map(|rc| rc.clone());
+			let magic_ring_buffer = self.allocate_a_send_buffer();
+			
+			TransmissionControlBlock::new_for_sychronize_received_to_established(key, now, maximum_segment_size_to_send_to_remote, recent_connection_data, md5_authentication_key, magic_ring_buffer, Self::congestion_control(now, maximum_segment_size_to_send_to_remote, recent_connection_data), SEG, tcp_options, parsed_syncookie)
+		};
+		let transmission_control_block = self.add(transmission_control_block);
 		
 		
 		// TODO: Schedule first alarm.
 		x;
 		let alarms = self.alarms();
 		transmission_control_block.keep_alive_XXXXX(alarms);
+		
+		transmission_control_block
+	}
+	
+	#[inline(always)]
+	fn congestion_control(now: MonotonicMillisecondTimestamp, maximum_segment_size_to_send_to_remote: u16, recent_connection_data: &RecentConnectionData) -> CongestionControl
+	{
+		const InitialCongestionWindowAlgorithm: InitialCongestionWindowAlgorithm = InitialCongestionWindowAlgorithm::RFC_6928;
+		
+		CongestionControl::new(InitialCongestionWindowAlgorithm, now, maximum_segment_size_to_send_to_remote, recent_connection_data)
+	}
+	
+	#[inline(always)]
+	fn add(&self, transmission_control_block: TransmissionControlBlock<TCBA>) -> &mut TransmissionControlBlock<TCBA>
+	{
+		self.transmission_control_blocks.borrow_mut().entry(transmission_control_block.key()).or_insert(transmission_control_block)
 	}
 	
 	#[inline(always)]
@@ -344,13 +376,6 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		self.update_recent_connection_data(&transmission_control_block, now);
 		self.source_port_chooser.update(&transmission_control_block, now);
 		transmission_control_block.destroying(self, interface.alarms())
-	}
-	
-	#[inline(always)]
-	fn transmission_control_blocks_at_maximum_capacity(&self) -> bool
-	{
-		let transmission_control_blocks = self.transmission_control_blocks.borrow();
-		transmission_control_blocks.is_full()
 	}
 	
 	#[inline(always)]
@@ -379,17 +404,19 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 	}
 	
 	#[inline(always)]
+	fn transmission_control_blocks_at_maximum_capacity(&self) -> bool
+	{
+		self.transmission_control_blocks.borrow().is_full()
+	}
+	
+	#[inline(always)]
 	fn generate_initial_sequence_number(&self, remote_internet_protocol_address: &TCBA::Address, remote_port_local_port: RemotePortLocalPort)
 	{
-		self.initial_sequence_number_generator.generate_initial_sequence_number(self.local_internet_protocol_address, remote_internet_protocol_address, remote_port_local_port)
+		self.initial_sequence_number_generator.generate_initial_sequence_number(&self.local_internet_protocol_address, remote_internet_protocol_address, remote_port_local_port)
 	}
-}
-
-/// Cached congestion data.
-impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
-{
+	
 	#[inline(always)]
-	pub(crate) fn recent_connection_data<'a>(&self, now: MonotonicMillisecondTimestamp, remote_internet_protocol_address: &TCBA::Address) -> Ref<'a, RecentConnectionData>
+	fn recent_connection_data(&self, now: MonotonicMillisecondTimestamp, remote_internet_protocol_address: &TCBA::Address) -> &RecentConnectionData
 	{
 		self.recent_connections_congestion_data.get(now, remote_internet_protocol_address)
 	}
@@ -398,6 +425,36 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 	fn update_recent_connection_data(&self, transmission_control_block: &TransmissionControlBlock<TCBA>, now: MonotonicMillisecondTimestamp)
 	{
 		self.recent_connections_congestion_data.update(transmission_control_block, now)
+	}
+	
+	#[inline(always)]
+	fn allocate_a_send_buffer(&self) -> MagicRingBuffer
+	{
+		MagicRingBuffersArena::allocate(&self.transmission_control_blocks_send_buffers)
+	}
+}
+
+/// Maximum Segment Size (MSS).
+impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
+{
+	#[inline(always)]
+	pub(crate) fn maximum_segment_size_to_send_to_remote(&self, their_maximum_segment_size_options: Option<MaximumSegmentSizeOption>, remote_internet_protocol_address: &TCBA::Address) -> u16
+	{
+		self.transmission_control_block_abstractions.maximum_segment_size_to_send_to_remote(their_maximum_segment_size_options, remote_internet_protocol_address)
+	}
+	
+	#[inline(always)]
+	fn maximum_segment_size_to_send_to_remote_u16(&self, their_maximum_segment_size: u16, remote_internet_protocol_address: &TCBA::Address) -> u16
+	{
+		self.transmission_control_block_abstractions.maximum_segment_size_to_send_to_remote_u16(their_maximum_segment_size, remote_internet_protocol_address)
+	}
+	
+	/// RFC 6691, Section 2: "When calculating the value to put in the TCP MSS option, the MTU value SHOULD be decreased by only the size of the fixed IP and TCP headers and SHOULD NOT be decreased to account for any possible IP or TCP options; conversely, the sender MUST reduce the TCP data length to account for any IP or TCP options that it is including in the packets that it sends.
+	/// ... the goal is to avoid IP-level fragmentation of TCP packets".
+	#[inline(always)]
+	fn maximum_segment_size_without_fragmentation(&self, remote_internet_protocol_address: &TCBA::Address) -> u16
+	{
+		self.transmission_control_block_abstractions.maximum_segment_size_without_fragmentation(remote_internet_protocol_address)
 	}
 }
 
@@ -427,28 +484,9 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 	}
 	
 	#[inline(always)]
-	pub(crate) fn find_md5_authentication_key(&self, remote_internet_protocol_address: &Address, remote_port_local_port: RemotePortLocalPort) -> Option<&Rc<Md5PreSharedSecretKey>>
+	fn find_md5_authentication_key(&self, remote_internet_protocol_address: &Address, remote_port_local_port: RemotePortLocalPort) -> Option<&Rc<Md5PreSharedSecretKey>>
 	{
 		self.authentication_pre_shared_secret_keys.find_md5_authentication_key(remote_internet_protocol_address, remote_port_local_port.local_port())
-	}
-}
-
-/// Miscellany.
-impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
-{
-	/// RFC 6691, Section 2: "When calculating the value to put in the TCP MSS option, the MTU value SHOULD be decreased by only the size of the fixed IP and TCP headers and SHOULD NOT be decreased to account for any possible IP or TCP options; conversely, the sender MUST reduce the TCP data length to account for any IP or TCP options that it is including in the packets that it sends.
-	/// ... the goal is to avoid IP-level fragmentation of TCP packets".
-	#[inline(always)]
-	pub(crate) fn our_current_maximum_segment_size_without_fragmentation(&self, remote_internet_protocol_address: &TCBA::Address) -> u16
-	{
-		let path_maximum_transmission_unit = self.transmission_control_block_abstractions.current_path_maximum_transmission_unit(remote_internet_protocol_address);
-		
-		debug_assert!(path_maximum_transmission_unit >= TCBA::Address::MinimumPathMaximumTransmissionUnitSize, "path_maximum_transmission_unit '{}' is less than MinimumPathMaximumTransmissionUnitSize '{}'", path_maximum_transmission_unit, TCBA::Address::MinimumPathMaximumTransmissionUnitSize);
-		
-		let minimum_overhead_excluding_ip_options_ip_headers_and_tcp_options = TCBA::Address::SmallestLayer3HeaderSize + (size_of::<TcpFixedHeader>() as u16);
-		
-		debug_assert!(path_maximum_transmission_unit > minimum_overhead_excluding_ip_options_ip_headers_and_tcp_options, "path_maximum_transmission_unit '{}' is equal to or less than packet_headers_length_excluding_tcp_options '{}'", path_maximum_transmission_unit, minimum_overhead_excluding_ip_options_ip_headers_and_tcp_options);
-		path_maximum_transmission_unit - minimum_overhead_excluding_ip_options_ip_headers_and_tcp_options
 	}
 }
 
@@ -531,7 +569,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 			let mut options_data_pointer = start_of_options_data_pointer;
 			let mut previously_reserved_space_options_data_pointer = 0;
 			
-			options_data_pointer = TcpSegment::write_maximum_segment_size_option(TransmissionControlBlock::maximum_segment_size_to_send_to_remote(their_maximum_segment_size, self, remote_internet_protocol_address));
+			options_data_pointer = TcpSegment::write_maximum_segment_size_option(self.maximum_segment_size_to_send_to_remote(their_maximum_segment_size, remote_internet_protocol_address));
 			
 			if likely!(their_window_scale.is_some())
 			{
@@ -628,7 +666,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 	#[inline(always)]
 	pub(crate) fn send_challenge_acknowledgment(&self, packet: TCBA::Packet, transmission_control_block: &TransmissionControlBlock<TCBA>, now: MonotonicMillisecondTimestamp)
 	{
-		self.send_empty(packet, self.reuse_reversing_source_and_destination_addresses_for_tcp_segment(packet), transmission_control_block, now, Flags::Acknowledgment, transmission_control_block.SND.NXT, transmission_control_block.RCV.NXT(), None);
+		self.send_empty(packet, self.reuse_reversing_source_and_destination_addresses_for_tcp_segment(packet), transmission_control_block, now, Flags::Acknowledgment, transmission_control_block.SND.NXT(), transmission_control_block.RCV.NXT(), None);
 	}
 	
 	#[inline(always)]
@@ -657,11 +695,10 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 			}
 		}
 		
-		let SND = &transmission_control_block.SND;
-		debug_assert!(SND.window_is_zero(), "SND.WND is not zero");
+		debug_assert!(transmission_control_block.SND.window_is_zero(), "SND.WND is not zero");
 		
 		let (packet, our_tcp_segment) = self.create_for_tcp_segment(transmission_control_block.remote_internet_protocol_address())?;
-		self.send(packet, our_tcp_segment, transmission_control_block, now, Flags::AcknowledgmentPush, SND.NXT, transmission_control_block.RCV.NXT(), None, ZeroWindowProbePayloadWriter);
+		self.send(packet, our_tcp_segment, transmission_control_block, now, Flags::AcknowledgmentPush, transmission_control_block.SND.NXT(), transmission_control_block.RCV.NXT(), None, ZeroWindowProbePayloadWriter);
 		Ok(())
 	}
 	
@@ -686,11 +723,10 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 			}
 		}
 		
-		let SND = &transmission_control_block.SND;
-		debug_assert!(SND.window_is_not_zero(), "SND.WND is zero");
+		debug_assert!(transmission_control_block.SND.window_is_not_zero(), "SND.WND is zero");
 		
 		let (packet, our_tcp_segment) = self.create_for_tcp_segment(transmission_control_block.remote_internet_protocol_address())?;
-		self.send(packet, our_tcp_segment, transmission_control_block, now, Flags::Acknowledgment, SND.NXT, transmission_control_block.RCV.NXT(), None, DataPayloadWriter(buffer));
+		self.send(packet, our_tcp_segment, transmission_control_block, now, Flags::Acknowledgment, transmission_control_block.SND.NXT(), transmission_control_block.RCV.NXT(), None, DataPayloadWriter(buffer));
 		Ok(XXXX)
 		// TODO: Return how many bytes were put into the segment. Code needs to keep buffer pointer.
 	}
@@ -757,10 +793,10 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		
 		let padded_options_size = TcpSegment::round_up_options_size_to_multiple_of_four_and_set_padding_to_zero(start_of_options_data_pointer, end_of_options_data_pointer);
 		
-		let SND_NXT_old = transmission_control_block.SND.NXT;
+		let SND_NXT_old = transmission_control_block.SND.NXT();
 		let maximum_payload_size = transmission_control_block.maximum_payload_size_excluding_synchronize_and_finish();
 		let payload_size = payload_writer(unsafe { NonNull::new_unchecked(start_of_options_data_pointer + padded_options_size) }, maximum_payload_size);
-		transmission_control_block.SND.NXT += payload_size;
+		transmission_control_block.SND.increment_NXT(payload_size as u32);
 		
 		let layer_4_packet_size = TcpSegment::layer_4_packet_size(padded_options_size, payload_size);
 		

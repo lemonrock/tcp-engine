@@ -38,17 +38,6 @@ pub trait TransmissionControlBlockAbstractions: Sized
 	#[inline(always)]
 	fn reuse_packet_reversing_source_and_destination_addresses(&self, layer_4_protocol: u8, packet: Self::Packet) -> NonNull<u8>;
 	
-	/// Used specifically when setting TCP maximum segment size option.
-	///
-	/// Intended to be implemented as a combination of a cache of `PathMTU` and a set of known, fixed values, perhaps implemented using a routing table such as `IpLookupTable` (in the crate `treebitmap`).
-	///
-	/// A suitable cache is `LeastRecentlyUsedCacheWithExpiry`.
-	///
-	/// If there is no specific entry in the cache, an implementation can use `Self::Address::DefaultPathMaximumTransmissionUnitSize`.
-	///
-	/// Note also the advice of RFC 2923 Section 2.3: "The MSS should be determined based on the MTUs of the interfaces on the system".
-	#[inline(always)]
-	fn current_path_maximum_transmission_unit(&self, remote_internet_protocol_address: &Self::Address) -> u16;
 	
 	/// Enqueue a packet for outbound transmission.
 	///
@@ -63,4 +52,56 @@ pub trait TransmissionControlBlockAbstractions: Sized
 	/// Immediately transmit all enqueue packets.
 	#[inline(always)]
 	fn transmit_all_enqueued_packets(&self);
+	
+	
+	
+	#[doc(hidden)]
+	#[inline(always)]
+	fn maximum_segment_size_to_send_to_remote(&self, their_maximum_segment_size_options: Option<MaximumSegmentSizeOption>, remote_internet_protocol_address: &Self::Address) -> u16
+	{
+		let their_maximum_segment_size = match their_maximum_segment_size_options
+		{
+			None => Self::Address::DefaultMaximumSegmentSizeIfNoneSpecified.to_native_endian(),
+			
+			Some(their_maximum_segment_size_option) => their_maximum_segment_size_option.to_native_endian(),
+		};
+		
+		self.maximum_segment_size_to_send_to_remote_u16(their_maximum_segment_size, remote_internet_protocol_address)
+	}
+	
+	#[doc(hidden)]
+	#[inline(always)]
+	fn maximum_segment_size_to_send_to_remote_u16(&self, their_maximum_segment_size: u16, remote_internet_protocol_address: &Self::Address) -> u16
+	{
+		min(their_maximum_segment_size, self.maximum_segment_size_without_fragmentation(remote_internet_protocol_address))
+	}
+	
+	#[doc(hidden)]
+	#[inline(always)]
+	fn maximum_segment_size_without_fragmentation(&self, remote_internet_protocol_address: &Self::Address) -> u16
+	{
+		// RFC 6691, Section 2: "When calculating the value to put in the TCP MSS option, the MTU value SHOULD be decreased by only the size of the fixed IP and TCP headers and SHOULD NOT be decreased to account for any possible IP or TCP options; conversely, the sender MUST reduce the TCP data length to account for any IP or TCP options that it is including in the packets that it sends.
+		// ... the goal is to avoid IP-level fragmentation of TCP packets".
+		
+		let path_maximum_transmission_unit = self.current_path_maximum_transmission_unit(remote_internet_protocol_address);
+		
+		debug_assert!(path_maximum_transmission_unit >= Self::Address::MinimumPathMaximumTransmissionUnitSize, "path_maximum_transmission_unit '{}' is less than MinimumPathMaximumTransmissionUnitSize '{}'", path_maximum_transmission_unit, Self::Address::MinimumPathMaximumTransmissionUnitSize);
+		
+		let minimum_overhead_excluding_ip_options_ip_headers_and_tcp_options = Self::Address::SmallestLayer3HeaderSize + (size_of::<TcpFixedHeader>() as u16);
+		
+		debug_assert!(path_maximum_transmission_unit > minimum_overhead_excluding_ip_options_ip_headers_and_tcp_options, "path_maximum_transmission_unit '{}' is equal to or less than packet_headers_length_excluding_tcp_options '{}'", path_maximum_transmission_unit, minimum_overhead_excluding_ip_options_ip_headers_and_tcp_options);
+		path_maximum_transmission_unit - minimum_overhead_excluding_ip_options_ip_headers_and_tcp_options
+	}
+	
+	/// Used specifically when setting TCP maximum segment size option.
+	///
+	/// Intended to be implemented as a combination of a cache of `PathMTU` and a set of known, fixed values, perhaps implemented using a routing table such as `IpLookupTable` (in the crate `treebitmap`).
+	///
+	/// A suitable cache is `LeastRecentlyUsedCacheWithExpiry`.
+	///
+	/// If there is no specific entry in the cache, an implementation can use `Self::Address::DefaultPathMaximumTransmissionUnitSize`.
+	///
+	/// Note also the advice of RFC 2923 Section 2.3: "The MSS should be determined based on the MTUs of the interfaces on the system".
+	#[inline(always)]
+	fn current_path_maximum_transmission_unit(&self, remote_internet_protocol_address: &Self::Address) -> u16;
 }

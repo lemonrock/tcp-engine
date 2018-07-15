@@ -9,7 +9,7 @@ macro_rules! check_sequence_number_segment_is_unacceptable
 		{
 			if $self.reset_flag_unset()
 			{
-				$self.interface.send_acknowledgment($self.reuse_packet(), $transmission_control_block, $self.now, Flags::Acknowledgment, $transmission_control_block.SND.NXT, $transmission_control_block.RCV.NXT());
+				$self.interface.send_acknowledgment($self.reuse_packet(), $transmission_control_block, $self.now, Flags::Acknowledgment, $transmission_control_block.SND.NXT(), $transmission_control_block.RCV.NXT());
 			}
 			invalid!($self, $reason)
 		}

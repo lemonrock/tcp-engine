@@ -58,6 +58,17 @@ impl CongestionControl
 		}
 	}
 	
+	/// When entering the Established state for connections opened outbound (as a client), the maximum segment size may have changed due the exchange of TCP options in SYN and then SYN-ACK.
+	#[allow(non_snake_case)]
+	#[inline(always)]
+	pub fn entering_established_state(&mut self, sender_maximum_segment_size: u16)
+	{
+		self.sender_maximum_segment_size = sender_maximum_segment_size as u32;
+		
+		let IW = self.initial_window();
+		self.cwnd = IW;
+	}
+	
 	/// Is the congestion window one (1)?
 	///
 	/// This is a definition used by older RFCs (especially explicit congestion notification) before appropriate byte counting was introduced; later ones consider a congestion window of '1' to be sender maximum segment size, SMSS, or possibly less.

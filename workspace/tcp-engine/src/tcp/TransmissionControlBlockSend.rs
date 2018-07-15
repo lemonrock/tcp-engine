@@ -20,7 +20,7 @@ pub(crate) struct TransmissionControlBlockSend
 	/// The definition of SND.MAX is equivalent to the definition of 'snd_max' in [Wright, G. R. and W. R. Stevens, TCP/IP Illustrated, Volume 2 (The Implementation), Addison Wesley, January 1995]()".
 	///
 	/// It is worth noting that our definition of `SND.NXT` is actually the definition of `snd_max` in FreeBSD (and the above book).
-	pub(crate) NXT: WrappingSequenceNumber,
+	NXT: WrappingSequenceNumber,
 	
 	/// RFC 793, Glossary, page 83 expands this to call it the 'send window': "This represents the sequence numbers which the remote (receiving) TCP is willing to receive.
 	/// It is the value of the window field specified in segments from the remote (data receiving) TCP.
@@ -28,7 +28,7 @@ pub(crate) struct TransmissionControlBlockSend
 	/// (Retransmissions of sequence numbers between SND.UNA and SND.NXT are expected, of course)".
 	///
 	/// As of RFC 7323, Section 2.2 this is now the value left-shifted by `Snd.Wind.Shift` bits.
-	pub(crate) WND: WindowSize,
+	WND: WindowSize,
 	
 	/// RFC 5961 Section 5.2: "A new state variable MAX.SND.WND is defined as the largest window that the local sender has ever received from its peer.
 	/// This window may be scaled to a value larger than 65,535 bytes".
@@ -37,7 +37,7 @@ pub(crate) struct TransmissionControlBlockSend
 	WND_last_updated: MonotonicMillisecondTimestamp,
 	
 	/// RFC 7323, Section 2.
-	pub(crate) Wind: Wind,
+	Wind: Wind,
 	
 	/// RFC 793, Page 19: "segment sequence number used for last window update".
 	///
@@ -60,7 +60,7 @@ pub(crate) struct TransmissionControlBlockSend
 impl TransmissionControlBlockSend
 {
 	#[inline(always)]
-	pub(crate) fn new_for_closed_to_synchronize_sent(interface: &Interface<TCBA>, now: MonotonicMillisecondTimestamp, ISS: WrappingSequenceNumber) -> Self
+	pub(crate) fn new_for_closed_to_synchronize_sent(magic_ring_buffer: MagicRingBuffer, now: MonotonicMillisecondTimestamp, ISS: WrappingSequenceNumber) -> Self
 	{
 		const SND_WND: WindowSize = WindowSize::Zero;
 		
@@ -77,13 +77,13 @@ impl TransmissionControlBlockSend
 			WL2: WrappingSequenceNumber::Zero,
 			MAX_SND_WND: SND_WND,
 			WND_last_updated: now,
-			magic_ring_buffer: interface.allocate_a_send_buffer(),
+			magic_ring_buffer,
 			retransmission_queue: RetransmissionQueue::default(),
 		}
 	}
 	
 	#[inline(always)]
-	pub(crate) fn new_for_sychronize_received_to_established(interface: &Interface<TCBA>, now: MonotonicMillisecondTimestamp, ISS: WrappingSequenceNumber, IRS: WrappingSequenceNumber, SND_WND: WindowSize, SND_Wind_Shift: WindowScaleOption) -> Self
+	pub(crate) fn new_for_sychronize_received_to_established(magic_ring_buffer: MagicRingBuffer, now: MonotonicMillisecondTimestamp, ISS: WrappingSequenceNumber, IRS: WrappingSequenceNumber, SND_WND: WindowSize, SND_Wind_Shift: WindowScaleOption) -> Self
 	{
 		Self
 		{
@@ -98,7 +98,7 @@ impl TransmissionControlBlockSend
 			WL2: ISS,
 			MAX_SND_WND: SND_WND,
 			WND_last_updated: now,
-			magic_ring_buffer: interface.allocate_a_send_buffer(),
+			magic_ring_buffer,
 			retransmission_queue: RetransmissionQueue::default(),
 		}
 	}
@@ -113,6 +113,12 @@ impl TransmissionControlBlockSend
 	pub(crate) fn UNA_less_one(&self) -> WrappingSequenceNumber
 	{
 		self.UNA - 1
+	}
+	
+	#[inline(always)]
+	pub(crate) fn NXT(&self) -> WrappingSequenceNumber
+	{
+		self.NXT
 	}
 	
 	#[inline(always)]
@@ -143,6 +149,21 @@ impl TransmissionControlBlockSend
 	{
 		let SND = self;
 		SEG.WND << SND.Wind.Shift == SND.WND
+	}
+	
+	/// RFC 5961 Section 3.2: "If the RST bit is set and the sequence number exactly matches the next expected sequence number (RCV.NXT), then TCP MUST reset the connection".
+	#[inline(always)]
+	pub(crate) fn seg_ack_equals_snd_nxt<TCBA: TransmissionControlBlockAbstractions>(&self, SEG: &ParsedTcpSegment<TCBA>) -> bool
+	{
+		let self = SND;
+		SEG.ACK == SND.NXT
+	}
+	
+	#[inline(always)]
+	pub(crate) fn increment_NXT(&mut self, increment: u32)
+	{
+		let self = SND;
+		SND.NXT += increment
 	}
 	
 	// RFC 5961 Section 5.2 Paragraph 1: "The ACK value is considered acceptable only if it is in the range of ((SND.UNA - MAX.SND.WND) <= SEG.ACK <= SND.NXT)

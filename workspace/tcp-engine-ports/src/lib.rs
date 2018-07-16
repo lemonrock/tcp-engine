@@ -19,8 +19,11 @@ extern crate tcp_engine_time;
 
 use ::hyper_thread_random::generate_hyper_thread_safe_random_u16;
 use ::std::cell::UnsafeCell;
+use ::std::cmp::Ordering;
 use ::std::fmt;
 use ::std::fmt::Debug;
+use ::std::hash::Hash;
+use ::std::hash::Hasher;
 use ::std::mem::transmute;
 use ::std::mem::uninitialized;
 use ::std::mem::zeroed;

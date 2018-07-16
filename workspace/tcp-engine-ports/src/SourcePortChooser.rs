@@ -11,15 +11,16 @@ pub struct SourcePortChooser<Address: InternetProtocolAddress>
 
 impl<Address: InternetProtocolAddress> SourcePortChooser<Address>
 {
+	/// A four-minute value.
+	pub const OutboundConnectionExpiryPeriodIsRfc793DoubleMaximumSegmentLifetime: MillisecondDuration = MillisecondDuration::FourMinutes;
+	
 	/// Create a new instance.
 	#[inline(always)]
 	pub fn new(maximum_capacity: usize) -> Self
 	{
-		const OutboundConnectionExpiryPeriodIsRfc793DoubleMaximumSegmentLifetime: MillisecondDuration = MillisecondDuration::FourMinutes;
-		
 		Self
 		{
-			cache: UnsafeCell::new(LeastRecentlyUsedCacheWithExpiry::new(maximum_capacity, OutboundConnectionExpiryPeriodIsRfc793DoubleMaximumSegmentLifetime)),
+			cache: UnsafeCell::new(LeastRecentlyUsedCacheWithExpiry::new(maximum_capacity, Self::OutboundConnectionExpiryPeriodIsRfc793DoubleMaximumSegmentLifetime)),
 		}
 	}
 	

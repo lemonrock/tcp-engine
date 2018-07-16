@@ -9,12 +9,68 @@ pub union Ports
 	incoming_segment_source_port_destination_port: SourcePortDestinationPort,
 }
 
+impl Copy for Ports
+{
+}
+
+impl Clone for Ports
+{
+	#[inline(always)]
+	fn clone(&self) -> Self
+	{
+		Self
+		{
+			remote_port_local_port: unsafe { self.remote_port_local_port },
+		}
+	}
+}
+
 impl Debug for Ports
 {
 	#[inline(always)]
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
 	{
 		write!(f, "Ports {{ remote_port: {}, local_port: {} }}", self.remote_port(), self.local_port())
+	}
+}
+
+impl PartialOrd for Ports
+{
+	#[inline(always)]
+	fn partial_cmp(&self, rhs: &Self) -> Option<Ordering>
+	{
+		unsafe { self.remote_port_local_port.partial_cmp(&rhs.remote_port_local_port) }
+	}
+}
+
+impl Ord for Ports
+{
+	#[inline(always)]
+	fn cmp(&self, rhs: &Self) -> Ordering
+	{
+		unsafe { self.remote_port_local_port.cmp(&rhs.remote_port_local_port) }
+	}
+}
+
+impl PartialEq for Ports
+{
+	#[inline(always)]
+	fn eq(&self, rhs: &Self) -> bool
+	{
+		unsafe { self.remote_port_local_port == rhs.remote_port_local_port }
+	}
+}
+
+impl Eq for Ports
+{
+}
+
+impl Hash for Ports
+{
+	#[inline(always)]
+	fn hash<H: Hasher>(&self, hasher: &mut H)
+	{
+		hasher.write(unsafe { self.remote_port_local_port.to_bytes() })
 	}
 }
 

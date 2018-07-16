@@ -54,4 +54,10 @@ impl RemotePortLocalPort
 	{
 		self.local_port
 	}
+	
+	#[inline(always)]
+	fn to_bytes(&self) -> &[u8; 4]
+	{
+		unsafe { transmute(self) }
+	}
 }

@@ -60,11 +60,27 @@ impl<K: Hash + Eq, V> BoundedHashMap<K, V>
 		self.len() > self.maximum_capacity
 	}
 	
+	/// Inserts a value once, returning a mutable reference to it.
+	#[inline(always)]
+	pub fn insert_uniquely_and_return_mutable_reference(&mut self, key: K, value: V) -> &mut V
+	{
+		debug_assert!(!self.map.contains_key(&key), "Already present");
+		
+		self.map.entry(key).or_insert(value)
+	}
+	
 	/// Identical to HashMap.
 	#[inline(always)]
 	pub fn insert(&mut self, key: K, value: V) -> Option<V>
 	{
 		self.map.insert(key, value)
+	}
+	
+	/// Identical to HashMap.
+	#[inline(always)]
+	pub fn remove(&mut self, key: &K) -> Option<V>
+	{
+		self.map.remove(key)
 	}
 	
 	/// Identical to HashMap.

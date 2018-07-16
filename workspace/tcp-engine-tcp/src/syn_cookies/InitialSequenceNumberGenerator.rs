@@ -8,6 +8,7 @@
 ///
 /// * the value `M` has a random offset applied.
 /// * the secret key is 256 bits.
+#[derive(Debug)]
 pub struct InitialSequenceNumberGenerator
 {
 	secret_key: [u8; 256 / 8]

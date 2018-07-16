@@ -43,18 +43,89 @@ pub(crate) struct TransmissionControlBlock<TCBA: TransmissionControlBlockAbstrac
 	congestion_control: CongestionControl,
 }
 
+impl<TCBA: TransmissionControlBlockAbstractions> CreateTransmissionControlBlock<TCBA::Address> for TransmissionControlBlock<TCBA>
+{
+	#[inline(always)]
+	fn new_for_closed_to_synchronize_sent(key: TransmissionControlBlockKey, now: MonotonicMillisecondTimestamp, maximum_segment_size_to_send_to_remote: u16, recent_connection_data: &RecentConnectionData, md5_authentication_key: Option<Rc<Md5PreSharedSecretKey>>, magic_ring_buffer: MagicRingBuffer, congestion_control: CongestionControl, ISS: WrappingSequenceNumber) -> Self
+	{
+		Self
+		{
+			events_receiver: TCBA::EventReceiverCreator::create(&key),
+			key,
+			state: State::SynchronizeSent,
+			RCV: TransmissionControlBlockReceive::new_for_closed_to_synchronize_sent(),
+			SND: TransmissionControlBlockSend::new_for_closed_to_synchronize_sent(magic_ring_buffer, now, ISS),
+			keep_alive_alarm: Default::default(),
+			retransmission_and_zero_window_probe_alarm: Alarm::new(RetransmissionAndZeroWindowProbeAlarmBehaviour::new(recent_connection_data, true)),
+			user_time_out_alarm: Default::default(),
+			timestamping: Timestamping::new_for_closed_to_synchronize_sent(),
+			we_are_the_listener: false,
+			maximum_segment_size_to_send_to_remote,
+			selective_acknowledgments_permitted: false,
+			md5_authentication_key,
+			congestion_control,
+		}
+	}
+	
+	#[inline(always)]
+	fn new_for_sychronize_received_to_established(key: TransmissionControlBlockKey, now: MonotonicMillisecondTimestamp, maximum_segment_size_to_send_to_remote: u16, recent_connection_data: &RecentConnectionData, md5_authentication_key: Option<Rc<Md5PreSharedSecretKey>>, magic_ring_buffer: MagicRingBuffer, congestion_control: CongestionControl, SEG_WND: SegmentWindowSize, tcp_options: &TcpOptions, parsed_syncookie: ParsedSynCookie) -> Self
+	{
+		let (RCV_WND, RCV_Wind_Shift, SND_WND, SND_Wind_Shift) = match parsed_syncookie.their_window_scale
+		{
+			None => (InitialWindowSize::Segment << WindowScaleOption::EquivalentToNoWindowScale, WindowScaleOption::EquivalentToNoWindowScale, SEG_WND << WindowScaleOption::EquivalentToNoWindowScale, WindowScaleOption::EquivalentToNoWindowScale),
+			
+			Some(SND_Wind_Scale) =>
+			{
+				(InitialWindowSize::Segment << InitialWindowSize::Shift, InitialWindowSize::Shift, SEG_WND << SND_Wind_Scale, SND_Wind_Scale)
+			}
+		};
+		
+		// Original SYNACK segment SEQ.ACK().
+		let ISS = parsed_syncookie.ISS;
+		
+		// Original SYN segment SEQ.SEQ().
+		let IRS = parsed_syncookie.IRS;
+		
+		let RCV_NXT = IRS + 1;
+		
+		Self
+		{
+			events_receiver: TCBA::EventReceiverCreator::create(&key),
+			key,
+			state: State::Established,
+			RCV: TransmissionControlBlockReceive::new_for_sychronize_received_to_established(RCV_NXT, RCV_WND, RCV_Wind_Shift),
+			SND: TransmissionControlBlockSend::new_for_sychronize_received_to_established(magic_ring_buffer, now, ISS, IRS, SND_WND, SND_Wind_Shift),
+			keep_alive_alarm: Default::default(),
+			retransmission_and_zero_window_probe_alarm: Alarm::new(RetransmissionAndZeroWindowProbeAlarmBehaviour::new(recent_connection_data, false)),
+			user_time_out_alarm: Default::default(),
+			timestamping: Timestamping::new_for_sychronize_received_to_established(tcp_options, now, RCV_NXT),
+			we_are_the_listener: true,
+			maximum_segment_size_to_send_to_remote,
+			selective_acknowledgments_permitted: parsed_syncookie.their_selective_acknowledgment_permitted,
+			md5_authentication_key,
+			congestion_control,
+		}
+	}
+	
+	#[inline(always)]
+	fn key(&self) -> &TransmissionControlBlockKey<TCBA::Address>
+	{
+		&self.key
+	}
+}
+
 impl<TCBA: TransmissionControlBlockAbstractions> ConnectionIdentification<TCBA::Address> for TransmissionControlBlock<TCBA>
 {
 	#[inline(always)]
 	fn remote_internet_protocol_address(&self) -> &TCBA::Address
 	{
-		self.key.remote_internet_protocol_address()
+		self.key().remote_internet_protocol_address()
 	}
 	
 	#[inline(always)]
 	fn remote_port_local_port(&self) -> RemotePortLocalPort
 	{
-		self.key.remote_port_local_port()
+		self.key().remote_port_local_port()
 	}
 	
 	#[inline(always)]
@@ -247,70 +318,6 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 /// New connections and related functionality.
 impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 {
-	#[inline(always)]
-	pub(crate) fn new_for_closed_to_synchronize_sent(key: TransmissionControlBlockKey, now: MonotonicMillisecondTimestamp, maximum_segment_size_to_send_to_remote: u16, recent_connection_data: &RecentConnectionData, md5_authentication_key: Option<Rc<Md5PreSharedSecretKey>>, magic_ring_buffer: MagicRingBuffer, congestion_control: CongestionControl, ISS: WrappingSequenceNumber)
-	{
-		Self
-		{
-			events_receiver: TCBA::EventReceiverCreator::create(&key),
-			key,
-			state: State::SynchronizeSent,
-			RCV: TransmissionControlBlockReceive::new_for_closed_to_synchronize_sent(),
-			SND: TransmissionControlBlockSend::new_for_closed_to_synchronize_sent(magic_ring_buffer, now, ISS),
-			keep_alive_alarm: Default::default(),
-			retransmission_and_zero_window_probe_alarm: Alarm::new(RetransmissionAndZeroWindowProbeAlarmBehaviour::new(recent_connection_data, true)),
-			user_time_out_alarm: Default::default(),
-			timestamping: Timestamping::new_for_closed_to_synchronize_sent(),
-			we_are_the_listener: false,
-			maximum_segment_size_to_send_to_remote,
-			selective_acknowledgments_permitted: false,
-			md5_authentication_key,
-			congestion_control,
-		}
-	}
-	
-	#[inline(always)]
-	pub(crate) fn new_for_sychronize_received_to_established(key: TransmissionControlBlockKey, now: MonotonicMillisecondTimestamp, maximum_segment_size_to_send_to_remote: u16, recent_connection_data: &RecentConnectionData, md5_authentication_key: Option<Rc<Md5PreSharedSecretKey>>, magic_ring_buffer: MagicRingBuffer, congestion_control: CongestionControl, SEG: &ParsedTcpSegment, tcp_options: &TcpOptions, parsed_syncookie: ParsedSynCookie) -> Self
-	{
-		let SEG_WND = SEG.WND;
-		
-		let (RCV_WND, RCV_Wind_Shift, SND_WND, SND_Wind_Shift) = match parsed_syncookie.their_window_scale
-		{
-			None => (InitialWindowSize::Segment << WindowScaleOption::EquivalentToNoWindowScale, WindowScaleOption::EquivalentToNoWindowScale, SEG_WND << WindowScaleOption::EquivalentToNoWindowScale, WindowScaleOption::EquivalentToNoWindowScale),
-			
-			Some(SND_Wind_Scale) =>
-			{
-				(InitialWindowSize::Segment << InitialWindowSize::Shift, InitialWindowSize::Shift, SEG_WND << SND_Wind_Scale, SND_Wind_Scale)
-			}
-		};
-		
-		// Original SYNACK segment SEQ.ACK().
-		let ISS = parsed_syncookie.ISS;
-		
-		// Original SYN segment SEQ.SEQ().
-		let IRS = parsed_syncookie.IRS;
-		
-		let RCV_NXT = IRS + 1;
-		
-		Self
-		{
-			events_receiver: TCBA::EventReceiverCreator::create(&key),
-			key,
-			state: State::Established,
-			RCV: TransmissionControlBlockReceive::new_for_sychronize_received_to_established(RCV_NXT, RCV_WND, RCV_Wind_Shift),
-			SND: TransmissionControlBlockSend::new_for_sychronize_received_to_established(magic_ring_buffer, now, ISS, IRS, SND_WND, SND_Wind_Shift),
-			keep_alive_alarm: Default::default(),
-			retransmission_and_zero_window_probe_alarm: Alarm::new(RetransmissionAndZeroWindowProbeAlarmBehaviour::new(recent_connection_data, false)),
-			user_time_out_alarm: Default::default(),
-			timestamping: Timestamping::new_for_sychronize_received_to_established(tcp_options, now, RCV_NXT),
-			we_are_the_listener: true,
-			maximum_segment_size_to_send_to_remote,
-			selective_acknowledgments_permitted: parsed_syncookie.their_selective_acknowledgment_permitted,
-			md5_authentication_key,
-			congestion_control,
-		}
-	}
-	
 	#[inline(always)]
 	pub(crate) fn acknowledgment_of_new_data_returning_true_if_failed(&mut self, interface: &Interface<TCBA>, SEG: &ParsedTcpSegment<TCBA>, now: MonotonicMillisecondTimestamp, timestamps_option: Option<&TimestampsOption>, explicit_congestion_echo: bool) -> bool
 	{

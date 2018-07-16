@@ -3,7 +3,7 @@
 
 
 /// Key (identifier) of a Transmission Control Block (TCB).
-#[derive(Debug)]
+#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct TransmissionControlBlockKey<Address: InternetProtocolAddress>
 {
 	ports: Ports,

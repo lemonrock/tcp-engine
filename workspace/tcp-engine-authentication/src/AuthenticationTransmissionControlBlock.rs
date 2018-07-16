@@ -2,32 +2,14 @@
 // Copyright © 2017 The developers of tcp-engine. See the COPYRIGHT file in the top-level directory of this distribution and at https://raw.githubusercontent.com/lemonrock/tcp-engine/master/COPYRIGHT.
 
 
-/// Connection Identification.
-pub trait ConnectionIdentification<Address: InternetProtocolAddress>
+/// Authentication methods for a transmission control block.
+pub trait AuthenticationTransmissionControlBlock
 {
-	/// Remote internet protocol address.
+	#[doc(hidden)]
 	#[inline(always)]
-	fn remote_internet_protocol_address(&self) -> &Address;
-	
-	/// Remote port-local port combination.
-	#[inline(always)]
-	fn remote_port_local_port(&self) -> RemotePortLocalPort;
-	
-	/// Are we the listener (ie server, not an outbound client connection).
-	#[inline(always)]
-	fn we_are_the_listener(&self) -> bool;
+	fn md5_authentication_key(&self) -> Option<&Rc<Md5PreSharedSecretKey>>;
 	
 	#[doc(hidden)]
 	#[inline(always)]
-	fn we_are_the_client(&self) -> bool
-	{
-		!self.we_are_the_listener()
-	}
-	
-	#[doc(hidden)]
-	#[inline(always)]
-	fn debug_assert_we_are_the_client(&self)
-	{
-		debug_assert!(self.we_are_the_client(), "We are the listener (server)")
-	}
+	fn authentication_is_required(&self) -> bool;
 }

@@ -23,8 +23,6 @@ pub(crate) struct TransmissionControlBlock<TCBA: TransmissionControlBlockAbstrac
 	
 	timestamping: Option<Timestamping>,
 	
-	explicit_congestion_notification_state: Option<ExplicitCongestionNotificationState>,
-	
 	we_are_the_listener: bool,
 	
 	/// Also known as "MSS".
@@ -69,10 +67,87 @@ impl<TCBA: TransmissionControlBlockAbstractions> ConnectionIdentification<TCBA::
 impl<TCBA: TransmissionControlBlockAbstractions> RecentConnectionDataProvider<TCBA::Address> for TransmissionControlBlock<TCBA>
 {
 	#[inline(always)]
-	fn recent_connection_data(&self) -> (&TCBA::Address, RecentConnectionData)
+	fn recent_connection_data(&self) -> RecentConnectionData
 	{
 		let (smoothed_round_trip_time, round_trip_time_variance) = self.retransmission_and_zero_window_probe_alarm_behaviour_reference().smoothed_round_trip_time_and_round_trip_time_variance();
-		(self.remote_internet_protocol_address(), RecentConnectionData::new(smoothed_round_trip_time, round_trip_time_variance, self.ssthresh()))
+		RecentConnectionData::new(smoothed_round_trip_time, round_trip_time_variance, self.congestion_control.ssthresh())
+	}
+}
+
+impl<TCBA: TransmissionControlBlockAbstractions> AuthenticationTransmissionControlBlock for TransmissionControlBlock<TCBA>
+{
+	#[inline(always)]
+	fn md5_authentication_key(&self) -> Option<&Rc<Md5PreSharedSecretKey>>
+	{
+		self.md5_authentication_key.as_ref()
+	}
+	
+	#[inline(always)]
+	fn authentication_is_required(&self) -> bool
+	{
+		self.md5_authentication_key.is_some()
+	}
+}
+
+impl<TCBA: TransmissionControlBlockAbstractions> CongestionControlTransmissionControlBlock for TransmissionControlBlock<TCBA>
+{
+	#[inline(always)]
+	fn congestion_control_reference(&self) -> &CongestionControl
+	{
+		&self.congestion_control
+	}
+	
+	#[inline(always)]
+	fn congestion_control_mutable_reference(&mut self) -> &mut CongestionControl
+	{
+		&mut self.congestion_control
+	}
+}
+
+impl<TCBA: TransmissionControlBlockAbstractions> ExplicitCongestionNotificationTransmissionControlBlock for TransmissionControlBlock<TCBA>
+{
+}
+
+impl<TCBA: TransmissionControlBlockAbstractions> MaximumSegmentSizeTransmissionControlBlock<TCBA::Address> for TransmissionControlBlock<TCBA>
+{
+	#[inline(always)]
+	fn get_field_maximum_segment_size_to_send_to_remote(&self) -> u16
+	{
+		self.maximum_segment_size_to_send_to_remote
+	}
+	
+	#[inline(always)]
+	fn set_field_maximum_segment_size_to_send_to_remote(&mut self, value: u16)
+	{
+		self.maximum_segment_size_to_send_to_remote = value
+	}
+}
+
+impl<TCBA: TransmissionControlBlockAbstractions> StateTransmissionControlBlock for TransmissionControlBlock<TCBA>
+{
+	#[inline(always)]
+	fn get_field_state(&self) -> State
+	{
+		self.state.get()
+	}
+	
+	#[inline(always)]
+	fn set_field_state(&mut self, state: State)
+	{
+		self.state = state;
+	}
+}
+
+/// State information.
+impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
+{
+	#[inline(always)]
+	pub(crate) fn enter_state_established(&mut self)
+	{
+		self.retransmission_time_out_entering_established_state();
+		self.congestion_control.entering_established_state(self.maximum_segment_size_to_send_to_remote);
+		self.set_state(State::Established);
+		self.events_receiver.entered_state_established();
 	}
 }
 
@@ -80,7 +155,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> RecentConnectionDataProvider<TC
 impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 {
 	#[inline(always)]
-	pub(crate) fn new_for_closed_to_synchronize_sent(key: TransmissionControlBlockKey, now: MonotonicMillisecondTimestamp, maximum_segment_size_to_send_to_remote: u16, recent_connection_data: &RecentConnectionData, md5_authentication_key: Option<Rc<Md5PreSharedSecretKey>>, magic_ring_buffer: MagicRingBuffer, congestion_control: CongestionControl, ISS: WrappingSequenceNumber, explicit_congestion_notification_supported: bool)
+	pub(crate) fn new_for_closed_to_synchronize_sent(key: TransmissionControlBlockKey, now: MonotonicMillisecondTimestamp, maximum_segment_size_to_send_to_remote: u16, recent_connection_data: &RecentConnectionData, md5_authentication_key: Option<Rc<Md5PreSharedSecretKey>>, magic_ring_buffer: MagicRingBuffer, congestion_control: CongestionControl, ISS: WrappingSequenceNumber)
 	{
 		Self
 		{
@@ -93,14 +168,6 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 			retransmission_and_zero_window_probe_alarm: Alarm::new(RetransmissionAndZeroWindowProbeAlarmBehaviour::new(recent_connection_data, true)),
 			user_time_out_alarm: Default::default(),
 			timestamping: Timestamping::new_for_closed_to_synchronize_sent(),
-			explicit_congestion_notification_state: if explicit_congestion_notification_supported
-			{
-				Some(Default::default())
-			}
-			else
-			{
-				None
-			},
 			we_are_the_listener: false,
 			maximum_segment_size_to_send_to_remote,
 			selective_acknowledgments_permitted: false,
@@ -132,8 +199,6 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 		
 		let RCV_NXT = IRS + 1;
 		
-		let selective_acknowledgments_permitted = parsed_syncookie.their_selective_acknowledgment_permitted;
-		
 		Self
 		{
 			events_receiver: TCBA::EventReceiverCreator::create(&key),
@@ -145,28 +210,12 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 			retransmission_and_zero_window_probe_alarm: Alarm::new(RetransmissionAndZeroWindowProbeAlarmBehaviour::new(recent_connection_data, false)),
 			user_time_out_alarm: Default::default(),
 			timestamping: Timestamping::new_for_sychronize_received_to_established(tcp_options, now, RCV_NXT),
-			explicit_congestion_notification_state: if parsed_syncookie.explicit_congestion_notification_supported
-			{
-				Some(Default::default())
-			}
-			else
-			{
-				None
-			},
 			we_are_the_listener: true,
 			maximum_segment_size_to_send_to_remote,
-			selective_acknowledgments_permitted,
+			selective_acknowledgments_permitted: parsed_syncookie.their_selective_acknowledgment_permitted,
 			md5_authentication_key,
 			congestion_control,
 		}
-	}
-	
-	#[inline(always)]
-	pub(crate) fn our_offered_maximum_segment_size_when_initiating_connections(&self) -> MaximumSegmentSizeOption
-	{
-		debug_assert!(!self.we_are_the_listener, "We are the listener (server)");
-		
-		MaximumSegmentSizeOption::from(self.maximum_segment_size_to_send_to_remote)
 	}
 	
 	#[inline(always)]
@@ -199,12 +248,12 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 			}
 		}
 		
-		self.increase_bytes_acknowledged(bytes_acknowledged);
+		self.congestion_control.increase_bytes_acknowledged(bytes_acknowledged);
 		
 		// RFC 3168 Section 6.1.2 Paragraph 2: "TCP should not react to congestion indications more than once every window of data (or more loosely, more than once every round-trip time).
 		// That is, the TCP sender's congestion window should be reduced only once in response to a series of dropped and/or CE packets from a single window of data.
 		// In addition, the TCP source should not decrease the slow-start threshold, ssthresh, if it has been decreased within the last round trip time".
-		if let Some(explicit_congestion_notification_state) = transmission_control_block.explicit_congestion_notification_state()
+		if let Some(explicit_congestion_notification_state) = transmission_control_block.explicit_congestion_notification_state_mutable_reference()
 		{
 			if a_window_of_data_was_processed && explicit_congestion_echo
 			{
@@ -412,7 +461,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	#[inline(always)]
 	fn maximum_data(&mut self, now: MonotonicMillisecondTimestamp) -> u32
 	{
-		self.congestion_control.reset_congestion_window_to_restart_window_if_no_data_sent_for_an_interval_exceeding_the_retransmission_time_out(now, self.explicit_congestion_notification_state(), self.retransmission_time_out());
+		self.congestion_control.reset_congestion_window_to_restart_window_if_no_data_sent_for_an_interval_exceeding_the_retransmission_time_out(now, self.retransmission_time_out());
 		
 		self.congestion_control.maximum_data(self.SND.rwnd())
 	}
@@ -519,109 +568,14 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	}
 }
 
-/// Congestion Control.
-impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
-{
-	#[inline(always)]
-	pub(crate) fn increment_duplicate_acknowledgments_received_without_any_intervening_acknwoledgments_which_moved_SND_UNA(&mut self)
-	{
-		self.congestion_control.increment_duplicate_acknowledgments_received_without_any_intervening_acknwoledgments_which_moved_SND_UNA()
-	}
-	
-	#[inline(always)]
-	pub(crate) fn reset_congestion_window_to_restart_window_because_no_data_received_after_connection_became_idle(&mut self)
-	{
-		self.congestion_control.reset_congestion_window_to_restart_window_because_no_data_received_after_connection_became_idle()
-	}
-	
-	#[inline(always)]
-	pub(crate) fn reset_congestion_window_to_loss_window_because_retransmission_timed_out(&mut self)
-	{
-		self.congestion_control.reset_congestion_window_to_loss_window_because_retransmission_timed_out(self.explicit_congestion_notification_state())
-	}
-	
-	#[inline(always)]
-	pub(crate) fn bytes_sent_in_payload_in_a_segment_which_is_not_a_zero_window_probe_or_retransmission(&mut self, increase_flight_size_by_amount_of_bytes: u32)
-	{
-		self.congestion_control.bytes_sent_in_payload_in_a_segment_which_is_not_a_zero_window_probe_or_retransmission(increase_flight_size_by_amount_of_bytes)
-	}
-	
-	#[inline(always)]
-	pub(crate) fn rfc_5681_section_7_paragaph_6_set_ssthresh_to_half_of_flight_size_on_first_retransmission(&mut self)
-	{
-		self.congestion_control.rfc_5681_section_7_paragaph_6_set_ssthresh_to_half_of_flight_size_on_first_retransmission();
-	}
-	
-	#[inline(always)]
-	fn ssthresh(&self) -> u32
-	{
-		self.congestion_control.ssthresh
-	}
-	
-	#[inline(always)]
-	fn increase_bytes_acknowledged(&mut self, by_amount_of_bytes: u32)
-	{
-		self.congestion_control.increase_bytes_acknowledged(by_amount_of_bytes)
-	}
-}
-
-/// Explicit Congestion Notification.
-impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
-{
-	#[inline(always)]
-	pub(crate) fn explicit_congestion_notification_unsupported(&self) -> bool
-	{
-		self.explicit_congestion_notification_state.is_none()
-	}
-	
-	#[inline(always)]
-	pub(crate) fn explicit_congestion_notification_supported(&self) -> bool
-	{
-		self.explicit_congestion_notification_state.is_some()
-	}
-	
-	#[inline(always)]
-	pub(crate) fn disable_explicit_congestion_notification(&mut self)
-	{
-		self.explicit_congestion_notification_state = None;
-	}
-	
-	#[inline(always)]
-	pub(crate) fn explicit_congestion_notification_state(&mut self) -> Option<&mut ExplicitCongestionNotificationState>
-	{
-		self.explicit_congestion_notification_state.as_mut()
-	}
-	
-	#[inline(always)]
-	pub(crate) fn add_explicit_congestion_echo_flag_to_acknowledgment_if_appropriate(&self, flags: Flags) -> Flags
-	{
-		if let Some(ref explicit_congestion_notification_state) = self.explicit_congestion_notification_state
-		{
-			if explicit_congestion_notification_state.acknowledgments_should_explicit_congestion_echo()
-			{
-				return flags | Flags::ExplicitCongestionEcho
-			}
-		}
-		flags
-	}
-	
-	#[inline(always)]
-	pub(crate) fn explicit_congestion_notification_reduced_congestion_window(&mut self)
-	{
-		if let Some(explicit_congestion_notification_state) = self.explicit_congestion_notification_state()
-		{
-			explicit_congestion_notification_state.reduced_congestion_window()
-		}
-	}
-}
-
 /// User time out.
 impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 {
 	#[inline(always)]
 	pub(crate) fn schedule_user_time_out_alarm_for_connection(&mut self, alarms: &Alarms<TCBA>, connection_time_out: MillisecondDuration)
 	{
-		debug_assert!(self.is_state_synchronize_sent(), "This is only valid to do in the SynchronizeSent state");
+		self.debug_assert_action_is_only_valid_in_sychronize_sent_state();
+		self.debug_assert_we_are_the_client();
 		
 		self.user_time_out_alarm.schedule(alarms, TickDuration::milliseconds_to_ticks_rounded_up(connection_time_out))
 	}
@@ -850,7 +804,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	#[inline(always)]
 	pub(crate) fn timestamps_are_required_in_all_segments_except_reset(&self) -> bool
 	{
-		debug_assert!(self.is_state_synchronized(), "This method is only valid once state is synchronized");
+		self.debug_assert_action_is_only_valid_in_synchronized_states();
 		
 		self.timestamping.is_some()
 	}
@@ -867,8 +821,6 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	#[inline(always)]
 	pub(crate) fn normal_timestamps_option(&self) -> TimestampsOption
 	{
-		debug_assert_eq!(self.state, State::SynchronizeSent, "Only valid for SynchronizeSent");
-		
 		self.timestamping_reference_unwrapped().normal_timestamps_option()
 	}
 	
@@ -881,12 +833,18 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	#[inline(always)]
 	pub(crate) fn enable_timestamping(&mut self, timestamps_option: TimestampsOption)
 	{
+		self.debug_assert_action_is_only_valid_in_sychronize_sent_state();
+		self.debug_assert_we_are_the_client();
+		
 		self.timestamping_mutable_reference_unwrapped().set_TS_Recent(timestamps_option.TSval)
 	}
 	
 	#[inline(always)]
 	pub(crate) fn disable_timestamping(&mut self)
 	{
+		self.debug_assert_action_is_only_valid_in_sychronize_sent_state();
+		self.debug_assert_we_are_the_client();
+		
 		self.timestamping = None
 	}
 	
@@ -906,68 +864,5 @@ impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
 	fn timestamping_reference_unwrapped(&self) -> &Timestamping
 	{
 		self.timestamping_reference().unwrap()
-	}
-}
-
-/// Authentication.
-impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
-{
-	#[inline(always)]
-	pub(crate) fn md5_authentication_key(&self) -> Option<&Rc<Md5PreSharedSecretKey>>
-	{
-		self.md5_authentication_key.as_ref()
-	}
-	
-	#[inline(always)]
-	pub(crate) fn authentication_is_required(&self) -> bool
-	{
-		self.md5_authentication_key.is_some()
-	}
-}
-
-/// State information.
-impl<TCBA: TransmissionControlBlockAbstractions> TransmissionControlBlock<TCBA>
-{
-	#[inline(always)]
-	pub(crate) fn is_state_established(&self) -> bool
-	{
-		self.state().is_established()
-	}
-	
-	#[inline(always)]
-	pub(crate) fn is_state_synchronize_sent(&self) -> bool
-	{
-		self.state().is_synchronize_sent()
-	}
-	
-	#[inline(always)]
-	pub(crate) fn is_state_synchronized(&self) -> bool
-	{
-		self.state().is_synchronized()
-	}
-	
-	#[inline(always)]
-	pub(crate) fn state(&self) -> State
-	{
-		self.state.get()
-	}
-	
-	#[inline(always)]
-	pub(crate) fn enter_state_established(&mut self)
-	{
-		self.retransmission_time_out_entering_established_state();
-		self.congestion_control.entering_established_state(self.maximum_segment_size_to_send_to_remote);
-		self.set_state(State::Established);
-		self.events_receiver.entered_state_established();
-	}
-	
-	// set_state(State::Established)
-	// enter_state_established
-	#[inline(always)]
-	fn set_state(&mut self, state: State)
-	{
-		debug_assert!(state > self.state(), "new state '{:?}' does not advance from existing state '{:?}", state, self.state());
-		
-		self.state.set(state)
 	}
 }

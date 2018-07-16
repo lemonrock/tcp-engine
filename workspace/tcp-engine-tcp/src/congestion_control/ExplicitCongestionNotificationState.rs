@@ -81,4 +81,18 @@ impl ExplicitCongestionNotificationState
 		self.congestion_window_was_reduced_so_set_congestion_window_reduced_on_first_new_data_packet = false;
 		result
 	}
+	
+	#[allow(missing_docs)]
+	#[inline(always)]
+	pub fn new(explicit_congestion_notification_supported: bool) -> Option<Self>
+	{
+		if explicit_congestion_notification_supported
+		{
+			Some(Default::default())
+		}
+		else
+		{
+			None
+		}
+	}
 }

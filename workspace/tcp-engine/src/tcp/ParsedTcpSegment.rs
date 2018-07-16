@@ -477,7 +477,7 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 		
 		transmission_control_block.RCV.initialize_NXT(IRS);
 		
-		transmission_control_block.maximum_segment_size_to_send_to_remote = self.interface.maximum_segment_size_to_send_to_remote(self.tcp_options.maximum_segment_size, self.source_internet_protocol_address);
+		transmission_control_block.set_maximum_segment_size_to_send_to_remote(self.interface.maximum_segment_size_to_send_to_remote(self.tcp_options.maximum_segment_size, self.source_internet_protocol_address));
 		
 		// Processing Incoming Segments 3.4.1.1.
 		match self.tcp_options.window_scale
@@ -494,7 +494,7 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 		// Processing Incoming Segments 3.4.1.1.
 		match self.tcp_options.timestamps
 		{
-			Some(timestamps_option) => transmission_control_block.timestamping_mutable_reference_unwrapped().set_TS_Recent(timestamps_option.TSval),
+			Some(timestamps_option) => transmission_control_block.enable_timestamping(timestamps_option),
 			
 			None => transmission_control_block.disable_timestamping(),
 		}
@@ -628,7 +628,7 @@ impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b
 		// TODO: CWR flag should only be set on data segments that have not been re-txmtd and not on zero window probes.
 		// TODO: ECN flag should only be set on ACKs.
 		
-		if let Some(explicit_congestion_notification_state) = transmission_control_block.explicit_congestion_notification_state()
+		if let Some(explicit_congestion_notification_state) = transmission_control_block.explicit_congestion_notification_state_mutable_reference()
 		{
 			// RFC 3168 Section 6.1.1: "A host MUST NOT set ECT on SYN or SYN-ACK packets"; hence congestion_encountered() is false and the CWR flag should not be set.
 			if likely!(this_is_after_syn_ack)

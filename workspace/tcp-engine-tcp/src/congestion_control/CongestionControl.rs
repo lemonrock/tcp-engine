@@ -7,6 +7,8 @@
 #[allow(non_snake_case)]
 pub struct CongestionControl
 {
+	explicit_congestion_notification_state: Option<ExplicitCongestionNotificationState>,
+	
 	initial_congestion_window_algorithm: InitialCongestionWindowAlgorithm,
 	
 	number_of_duplicate_acknowledgments_received_since_SND_UNA_advanced: u64,
@@ -38,7 +40,7 @@ impl CongestionControl
 {
 	/// Creates a new instance.
 	#[inline(always)]
-	pub fn new(initial_congestion_window_algorithm: InitialCongestionWindowAlgorithm, last_sent_data_at: MonotonicMillisecondTimestamp, sender_maximum_segment_size: u16, recent_connection_data: &RecentConnectionData) -> Self
+	pub fn new(explicit_congestion_notification_supported: bool, initial_congestion_window_algorithm: InitialCongestionWindowAlgorithm, last_sent_data_at: MonotonicMillisecondTimestamp, sender_maximum_segment_size: u16, recent_connection_data: &RecentConnectionData) -> Self
 	{
 		let sender_maximum_segment_size = sender_maximum_segment_size as u32;
 		
@@ -47,6 +49,7 @@ impl CongestionControl
 		
 		Self
 		{
+			explicit_congestion_notification_state: ExplicitCongestionNotificationState::new(explicit_congestion_notification_supported),
 			initial_congestion_window_algorithm,
 			number_of_duplicate_acknowledgments_received_since_SND_UNA_advanced: 0,
 			last_sent_data_at,
@@ -58,15 +61,29 @@ impl CongestionControl
 		}
 	}
 	
-	/// When entering the Established state for connections opened outbound (as a client), the maximum segment size may have changed due the exchange of TCP options in SYN and then SYN-ACK.
+	/// Disables explicit congestion notification.
+	///
+	/// Can only be called in the state SynchronizeSent.
+	#[inline(always)]
+	pub fn disable_explicit_congestion_notification(&mut self)
+	{
+		self.explicit_congestion_notification_state = None
+	}
+	
+	/// `ssthresh`; used for recent connection data.
+	#[inline(always)]
+	pub fn ssthresh(&self) -> u32
+	{
+		self.ssthresh
+	}
+	
+	/// When entering the Established state for connections opened outbound (as a client), the maximum segment size may have changed.
 	#[allow(non_snake_case)]
 	#[inline(always)]
 	pub fn entering_established_state(&mut self, sender_maximum_segment_size: u16)
 	{
 		self.sender_maximum_segment_size = sender_maximum_segment_size as u32;
-		
-		let IW = self.initial_window();
-		self.cwnd = IW;
+		self.reset_congestion_window_to_initial_window()
 	}
 	
 	/// Is the congestion window one (1)?
@@ -75,7 +92,7 @@ impl CongestionControl
 	#[inline(always)]
 	pub fn congestion_window_is_one(&self) -> bool
 	{
-		self.cwnd <= self.sender_maximum_segment_size
+		self.congestion_window() <= self.sender_maximum_segment_size
 	}
 	
 	// TODO: See also RFC 6582 New Reno: https://tools.ietf.org/html/rfc6582; this is a modification to fast retransmit / Fast Recovery.
@@ -213,21 +230,22 @@ impl CongestionControl
 	/// ...
 	/// TCP SHOULD set cwnd to no more than RW (the restart window) before beginning transmission if the TCP has not sent data in an interval exceeding the retransmission timeout".
 	#[inline(always)]
-	pub fn reset_congestion_window_to_restart_window_if_no_data_sent_for_an_interval_exceeding_the_retransmission_time_out(&mut self, explicit_congestion_notification_state: Option<&mut ExplicitCongestionNotificationState>, now: MonotonicMillisecondTimestamp, retransmission_time_out: MillisecondDuration)
+	pub fn reset_congestion_window_to_restart_window_if_no_data_sent_for_an_interval_exceeding_the_retransmission_time_out(&mut self, now: MonotonicMillisecondTimestamp, retransmission_time_out: MillisecondDuration)
 	{
 		debug_assert!(self.last_sent_data_at >= now, "self.last_sent_data_at '{}' is less than now '{}'", self.last_sent_data_at, now);
 		
 		if (self.last_sent_data_at - now) > retransmission_time_out
 		{
-			self.reset_congestion_window_to_restart_window(explicit_congestion_notification_state);
+			self.reset_congestion_window_to_restart_window();
 		}
 	}
 	
 	/// RFC 5681 Section 3.1 Page 8 Paragraph 2: "Furthermore, upon a timeout cwnd MUST be set to no more than the loss window, LW, which equals 1 full-sized segment (regardless of the value of IW).
 	/// Therefore, after retransmitting the dropped segment the TCP sender uses the slow start algorithm to increase the window from 1 full-sized segment to the new value of ssthresh, at which point congestion avoidance again takes over".
-	pub fn reset_congestion_window_to_loss_window_because_retransmission_timed_out(&mut self, explicit_congestion_notification_state: Option<&mut ExplicitCongestionNotificationState>)
+	#[inline(always)]
+	pub fn reset_congestion_window_to_loss_window_because_retransmission_timed_out(&mut self)
 	{
-		self.reset_congestion_window_to_loss_window(explicit_congestion_notification_state);
+		self.reset_congestion_window_to_loss_window();
 	}
 }
 
@@ -235,17 +253,31 @@ impl CongestionControl
 impl CongestionControl
 {
 	#[inline(always)]
-	fn reset_congestion_window_to_restart_window(&mut self, explicit_congestion_notification_state: Option<&mut ExplicitCongestionNotificationState>)
+	fn reset_congestion_window_to_initial_window(&mut self)
 	{
-		let restart_window = self.restart_window();
-		self.set_congestion_window(restart_window, explicit_congestion_notification_state)
+		let initial_window = self.initial_window();
+		self.set_congestion_window(initial_window)
 	}
 	
 	#[inline(always)]
-	fn reset_congestion_window_to_loss_window(&mut self, explicit_congestion_notification_state: Option<&mut ExplicitCongestionNotificationState>)
+	fn reset_congestion_window_to_restart_window(&mut self)
+	{
+		let restart_window = self.restart_window();
+		self.set_congestion_window(restart_window)
+	}
+	
+	#[inline(always)]
+	fn reset_congestion_window_to_loss_window(&mut self)
 	{
 		let loss_window = self.loss_window();
-		self.set_congestion_window(loss_window, explicit_congestion_notification_state)
+		self.set_congestion_window(loss_window)
+	}
+	
+	/// RFC 5681 Section 2: "INITIAL WINDOW (IW): The initial window is the size of the sender's congestion window after the three-way handshake is completed".
+	#[inline(always)]
+	fn initial_window(&self) -> u32
+	{
+		self.initial_congestion_window_algorithm.compute_initial_window(self.sender_maximum_segment_size)
 	}
 	
 	/// RFC 5681 Section 2: "RESTART WINDOW (RW): The restart window is the size of the congestion window (cwnd) after a TCP restarts transmission after an idle period (if the slow start algorithm is used ...)".
@@ -255,9 +287,7 @@ impl CongestionControl
 	#[inline(always)]
 	fn restart_window(&self) -> u32
 	{
-		#[allow(non_snake_case)] let IW = self.initial_congestion_window_algorithm.compute_initial_window(self.sender_maximum_segment_size);
-		
-		min(IW, self.congestion_window())
+		min(self.initial_window(), self.congestion_window())
 	}
 	
 	/// RFC 5681 Section 2: "LOSS WINDOW (LW): The loss window is the size of the congestion window after a TCP sender detects loss using its retransmission timer".
@@ -269,37 +299,29 @@ impl CongestionControl
 		self.sender_maximum_segment_size as u32
 	}
 	
-	/// RFC 5681 Section 2: "INITIAL WINDOW (IW): The initial window is the size of the sender's congestion window after the three-way handshake is completed".
-	///
-	// TODO: Hmmm... is this not needed after being idle?
 	#[inline(always)]
-	fn initial_window(&self) -> u32
+	fn congestion_window(&self) -> u32
 	{
-		self.initial_congestion_window_algorithm.compute_initial_window(self.sender_maximum_segment_size)
+		self.cwnd
 	}
 	
 	#[inline(always)]
 	fn increment_congestion_window(&mut self, increment: u32)
 	{
-		self.cwnd = self.cwnd.saturating_add(increment)
+		let value = self.congestion_window().saturating_add(increment);
+		self.set_congestion_window(value)
 	}
 	
 	#[inline(always)]
-	fn set_congestion_window(&mut self, value: u32, explicit_congestion_notification_state: Option<&mut ExplicitCongestionNotificationState>)
+	fn set_congestion_window(&mut self, value: u32)
 	{
 		if value > self.cwnd
 		{
-			if let Some(explicit_congestion_notification_state) = explicit_congestion_notification_state
+			if let Some(ref mut explicit_congestion_notification_state) = self.explicit_congestion_notification_state
 			{
 				explicit_congestion_notification_state.reduced_congestion_window();
 			}
 		}
 		self.cwnd = value
-	}
-	
-	#[inline(always)]
-	fn congestion_window(&self) -> u32
-	{
-		self.cwnd
 	}
 }

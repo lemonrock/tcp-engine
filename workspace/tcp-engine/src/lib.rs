@@ -17,17 +17,17 @@
 //!
 
 
-extern crate arrayvec;
 #[cfg(feature = "dpdk-sys")] extern crate dpdk_sys;
-extern crate dpdk_unix;
-extern crate hyper_thread_random;
 extern crate libc;
 #[macro_use] extern crate memoffset;
-extern crate md5;
-extern crate num_traits;
-extern crate sha2;
-extern crate siphasher;
-#[cfg(not(all(unix, not(any(target_os = "macos", target_os = "ios")))))] extern crate time;
+extern crate tcp_engine_check_sum;
+extern crate tcp_engine_collections;
+extern crate tcp_engine_internet_protocol;
+#[macro_use] extern crate tcp_engine_likely;
+extern crate tcp_engine_network_endian;
+extern crate tcp_engine_ports;
+extern crate tcp_engine_tcp_domain;
+extern crate tcp_engine_time;
 
 
 use self::api::*;
@@ -48,9 +48,6 @@ use ::hyper_thread_random::generate_hyper_thread_safe_random_u16;
 use ::hyper_thread_random::generate_hyper_thread_safe_random_u32;
 use ::hyper_thread_random::generate_hyper_thread_safe_random_u64;
 #[cfg(feature = "dpdk-sys")] use ::dpdk_sys::*;
-use ::dpdk_unix::android_linux::page_table::HasVirtualAddress;
-use ::dpdk_unix::memory_information::PhysicalAddress;
-use ::dpdk_unix::memory_information::VirtualAddress;
 use ::libc::c_void;
 use ::libc::close;
 use ::libc::ftruncate;

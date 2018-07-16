@@ -313,7 +313,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 			
 			let ISS = interface.generate_initial_sequence_number(now, &remote_internet_protocol_address, remote_port_local_port);
 			
-			TransmissionControlBlock::new_for_closed_to_synchronize_sent(key, now, maximum_segment_size_to_send_to_remote, recent_connection_data, md5_authentication_key, magic_ring_buffer, Self::congestion_control(now, maximum_segment_size_to_send_to_remote, recent_connection_data), ISS, explicit_congestion_notification_supported)
+			TransmissionControlBlock::new_for_closed_to_synchronize_sent(key, now, maximum_segment_size_to_send_to_remote, recent_connection_data, md5_authentication_key, magic_ring_buffer, Self::congestion_control(explicit_congestion_notification_supported, now, maximum_segment_size_to_send_to_remote, recent_connection_data), ISS)
 		};
 		let transmission_control_block = self.add(transmission_control_block);
 		
@@ -341,7 +341,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 			let md5_authentication_key = md5_authentication_key.map(|rc| rc.clone());
 			let magic_ring_buffer = self.allocate_a_send_buffer();
 			
-			TransmissionControlBlock::new_for_sychronize_received_to_established(key, now, maximum_segment_size_to_send_to_remote, recent_connection_data, md5_authentication_key, magic_ring_buffer, Self::congestion_control(now, maximum_segment_size_to_send_to_remote, recent_connection_data), SEG, tcp_options, parsed_syncookie)
+			TransmissionControlBlock::new_for_sychronize_received_to_established(key, now, maximum_segment_size_to_send_to_remote, recent_connection_data, md5_authentication_key, magic_ring_buffer, Self::congestion_control(parsed_syncookie.explicit_congestion_notification_supported, now, maximum_segment_size_to_send_to_remote, recent_connection_data), SEG, tcp_options, parsed_syncookie)
 		};
 		let transmission_control_block = self.add(transmission_control_block);
 		
@@ -355,7 +355,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 	}
 	
 	#[inline(always)]
-	fn congestion_control(now: MonotonicMillisecondTimestamp, maximum_segment_size_to_send_to_remote: u16, recent_connection_data: &RecentConnectionData) -> CongestionControl
+	fn congestion_control(explicit_congestion_notification_supported: bool, now: MonotonicMillisecondTimestamp, maximum_segment_size_to_send_to_remote: u16, recent_connection_data: &RecentConnectionData) -> CongestionControl
 	{
 		const InitialCongestionWindowAlgorithm: InitialCongestionWindowAlgorithm = InitialCongestionWindowAlgorithm::RFC_6928;
 		
@@ -809,7 +809,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		{
 			transmission_control_block.bytes_sent_in_payload_in_a_segment_which_is_not_a_zero_window_probe_or_retransmission(payload_size);
 			
-			if let Some(explicit_congestion_notification_state) = transmission_control_block.explicit_congestion_notification_state()
+			if let Some(explicit_congestion_notification_state) = transmission_control_block.explicit_congestion_notification_state_mutable_reference()
 			{
 				if transmission_control_block.is_state_synchronized()
 				{
@@ -873,3 +873,33 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		unsafe { &mut * (pointer_to_tcp_segment.as_ptr() as *mut TcpSegment) }
 	}
 }
+
+
+/*
+
+
+TODO: Method required on TCB in order to pull sending API from interface.
+
+transmission_control_block.our_offered_maximum_segment_size_when_initiating_connections()
+transmission_control_block.normal_timestamps_option()
+transmission_control_block.timestamping_reference()
+transmission_control_block.transmitted(now, ISS, payload_size as u32, flags);
+transmission_control_block.SND.UNA()
+transmission_control_block.SND.UNA_less_one()
+transmission_control_block.RCV.NXT()
+transmission_control_block.update_Last_ACK_sent(ACK);
+transmission_control_block.SND.window_is_not_zero()
+transmission_control_block.SND.window_is_zero()
+transmission_control_block.bytes_sent_in_payload_in_a_segment_which_is_not_a_zero_window_probe_or_retransmission(payload_size)
+transmission_control_block.RCV.segment_window_size()
+
+// To revise
+transmission_control_block.SND.NXT()
+transmission_control_block.maximum_payload_size_excluding_synchronize_and_finish()
+transmission_control_block.SND.increment_NXT(payload_size as u32);
+transmission_control_block.maximum_segment_size_to_send_to_remote - packet.internet_protocol_options_or_extension_headers_additional_overhead() - padded_options_size
+
+// done already
+transmission_control_block.remote_internet_protocol_address()
+transmission_control_block.remote_port_local_port()
+*/

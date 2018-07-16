@@ -7,5 +7,7 @@ use super::recent_connection_data::RecentConnectionData;
 
 
 include!("CongestionControl.rs");
+include!("CongestionControlTransmissionControlBlock.rs");
 include!("ExplicitCongestionNotificationState.rs");
+include!("ExplicitCongestionNotificationTransmissionControlBlock.rs");
 include!("InitialCongestionWindowAlgorithm.rs");

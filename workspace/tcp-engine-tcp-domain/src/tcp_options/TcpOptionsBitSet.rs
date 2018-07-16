@@ -14,8 +14,6 @@ impl TcpOptionsBitSet
 	
 	const NumberOfElements: usize = 2^8 / Self::BitsPerElement;
 	
-	const BytesPerElement: usize = Self::BitsPerElement / 8;
-	
 	#[inline(always)]
 	pub(crate) fn new() -> Self
 	{

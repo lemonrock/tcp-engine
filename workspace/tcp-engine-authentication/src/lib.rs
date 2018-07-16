@@ -31,6 +31,7 @@ use ::tcp_engine_internet_protocol::InternetProtocolAddress;
 
 include!("Authentication.rs");
 include!("AuthenticationPreSharedSecretKeys.rs");
+include!("AuthenticationTransmissionControlBlock.rs");
 include!("Md5AuthenticationConnectionIdentifier.rs");
 include!("Md5PreSharedSecretKey.rs");
 include!("TcpSegmentWithAuthenticationData.rs");

@@ -45,14 +45,6 @@ impl TcpOptionsBitSet
 	}
 	
 	#[inline(always)]
-	pub(crate) fn remove(&mut self, option_kind: u8)
-	{
-		let (element, bit_in_element_mask) = Self::element_and_bit_in_element_mask(option_kind);
-		
-		unsafe { *self.0.get_unchecked_mut(element) &= !bit_in_element_mask };
-	}
-	
-	#[inline(always)]
 	fn element_and_bit_in_element_mask(option_kind: u8) -> (usize, u64)
 	{
 		let bit_number = option_kind as usize;

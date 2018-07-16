@@ -18,65 +18,77 @@ pub struct TcpOptions
 
 impl TcpOptions
 {
-	const LengthOverhead: usize = 2;
-	
+	#[doc(hidden)]
 	#[inline(always)]
-	fn has_maximum_segment_size(&self) -> bool
+	pub const LengthOverhead: usize = 2;
+	
+	#[doc(hidden)]
+	#[inline(always)]
+	pub fn has_maximum_segment_size(&self) -> bool
 	{
 		self.maximum_segment_size.is_some()
 	}
 	
+	#[doc(hidden)]
 	#[inline(always)]
-	fn has_window_scale(&self) -> bool
+	pub fn has_window_scale(&self) -> bool
 	{
 		self.window_scale.is_some()
 	}
 	
+	#[doc(hidden)]
 	#[inline(always)]
-	fn has_selective_acknowledgment_permitted(&self) -> bool
+	pub fn has_selective_acknowledgment_permitted(&self) -> bool
 	{
 		self.selective_acknowledgment_permitted
 	}
 	
+	#[doc(hidden)]
 	#[inline(always)]
-	fn has_selective_acknowledgment(&self) -> bool
+	pub fn has_selective_acknowledgment(&self) -> bool
 	{
 		self.selective_acknowledgment.is_some()
 	}
 	
+	#[doc(hidden)]
 	#[inline(always)]
-	fn has_timestamps(&self) -> bool
+	pub fn has_timestamps(&self) -> bool
 	{
 		self.timestamps.is_some()
 	}
 	
+	#[doc(hidden)]
 	#[inline(always)]
-	fn does_not_have_timestamps(&self) -> bool
+	pub fn does_not_have_timestamps(&self) -> bool
 	{
 		self.timestamps.is_none()
 	}
 	
+	#[doc(hidden)]
 	#[inline(always)]
-	fn has_user_time_out(&self) -> bool
+	pub fn has_user_time_out(&self) -> bool
 	{
 		self.user_time_out.is_some()
 	}
 	
+	#[doc(hidden)]
 	#[inline(always)]
-	fn has_authentication(&self) -> bool
+	pub fn has_authentication(&self) -> bool
 	{
 		self.authentication.is_some()
 	}
 	
+	#[doc(hidden)]
 	#[inline(always)]
-	fn parse_option_kind_without_checks(pointer_to_option_kind: usize) -> u8
+	pub fn parse_option_kind_without_checks(pointer_to_option_kind: usize) -> u8
 	{
 		let length = unsafe { *(pointer_to_option_kind as *const u8) };
 		length
 	}
 	
+	#[doc(hidden)]
 	#[inline(always)]
-	fn parse_option_length_without_checks(pointer_to_length: usize) -> u8
+	pub fn parse_option_length_without_checks(pointer_to_length: usize) -> u8
 	{
 		let length = unsafe { *(pointer_to_length as *const u8) };
 		length

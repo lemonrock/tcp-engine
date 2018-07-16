@@ -15,6 +15,15 @@ impl Default for WindowScaleOption
 	}
 }
 
+impl From<u8> for WindowScaleOption
+{
+	#[inline(always)]
+	fn from(value: u8) -> Self
+	{
+		WindowScaleOption(value)
+	}
+}
+
 impl Into<u8> for WindowScaleOption
 {
 	#[inline(always)]
@@ -44,9 +53,11 @@ impl Into<usize> for WindowScaleOption
 
 impl WindowScaleOption
 {
-	pub(crate) const Kind: u8 = 3;
+	#[doc(hidden)]
+	pub const Kind: u8 = 3;
 	
-	pub(crate) const KnownLength: usize = 3;
+	#[doc(hidden)]
+	pub const KnownLength: usize = 3;
 	
 	/// Zero.
 	pub const Zero: Self = WindowScaleOption(0);

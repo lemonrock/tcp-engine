@@ -5,14 +5,10 @@
 use super::*;
 
 
-include!("TcpOptions.parse_options.rs");
-
-
 include!("AuthenticationOption.rs");
 include!("MaximumSegmentSizeOption.rs");
 include!("SelectiveAcknowledgmentOption.rs");
 include!("TcpOptions.rs");
-include!("TcpOptionsBitSet.rs");
 include!("TimestampsOption.rs");
 include!("UserTimeOutOption.rs");
 include!("WindowScaleOption.rs");

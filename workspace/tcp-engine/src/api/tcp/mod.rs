@@ -5,8 +5,5 @@
 use super::*;
 
 
-include!("Interface.drop.rs");
-
-
 include!("HardwareTransmissionSegmentationOffloadLimits.rs");
 include!("Interface.rs");

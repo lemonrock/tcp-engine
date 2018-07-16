@@ -13,8 +13,7 @@ pub struct TransmissionControlBlocks<TCBA: TransmissionControlBlockAbstractions,
 	initial_sequence_number_generator: InitialSequenceNumberGenerator,
 }
 
-impl<TCBA: TransmissionControlBlockAbstractions, TCB: RecentConnectionDataProvider<TCBA::Address>> TransmissionControlBlocks<TCBA, TCB>
-where TCB: CreateTransmissionControlBlock<TCBA::Address>
+impl<TCBA: TransmissionControlBlockAbstractions, TCB: CreateTransmissionControlBlock<TCBA::Address> + ConnectionIdentification<TCBA::Address> + RecentConnectionDataProvider<TCBA::Address>> TransmissionControlBlocks<TCBA, TCB>
 {
 	/// Creates a new instance.
 	#[inline(always)]
@@ -74,14 +73,14 @@ where TCB: CreateTransmissionControlBlock<TCBA::Address>
 			TCB::new_for_closed_to_synchronize_sent(key, now, maximum_segment_size_to_send_to_remote, recent_connection_data, md5_authentication_key, magic_ring_buffer, congestion_control, ISS)
 		});
 		
-		// TODO: Schedule alarms.
+		// TODO: Schedule alarms (use connection_time_out).
 		
 		Ok(())
 	}
 	
 	/// Create a new transmission control block for an incoming (server) connection.
 	#[inline(always)]
-	pub fn new_transmission_control_block_for_incoming_segment(&self, source_internet_protocol_address: &TCBA::Address, SEG: &TcpSegment, SEG_WND: SegmentWindowSize, tcp_options: &TcpOptions, parsed_syncookie: ParsedSynCookie, now: MonotonicMillisecondTimestamp, md5_authentication_key: Option<&Rc<Md5PreSharedSecretKey>>, maximum_segment_size_table: &MaximumSegmentSizeTable<TCBA::Address, TCBA::PMTUTable>) -> &mut TCB
+	pub fn new_transmission_control_block_for_incoming_segment(&self, source_internet_protocol_address: &TCBA::Address, SEG: &TcpSegment, SEG_WND: SegmentWindowSize, tcp_options: &TcpOptions, parsed_syncookie: ParsedSynCookie, now: MonotonicMillisecondTimestamp, md5_authentication_key: Option<Rc<Md5PreSharedSecretKey>>, maximum_segment_size_table: &MaximumSegmentSizeTable<TCBA::Address, TCBA::PMTUTable>) -> &mut TCB
 	{
 		self.debug_assert_not_at_maximum_capacity();
 		

@@ -15,23 +15,31 @@ pub struct SelectiveAcknowledgmentOption
 
 impl SelectiveAcknowledgmentOption
 {
-	pub(crate) const Kind: u8 = 5;
+	#[doc(hidden)]
+	pub const Kind: u8 = 5;
 	
-	pub(crate) const SelectiveAcknowledgmentPermittedOptionKind: u8 = 4;
+	#[doc(hidden)]
+	pub const SelectiveAcknowledgmentPermittedOptionKind: u8 = 4;
 	
-	pub(crate) const SelectiveAcknowledgmentPermittedOptionKnownLength: usize = 2;
+	#[doc(hidden)]
+	pub const SelectiveAcknowledgmentPermittedOptionKnownLength: usize = 2;
 	
 	const OptionTypeAndLengthOverhead: usize = 2;
 	
-	pub(crate) const BlockLength: usize = 8;
+	#[doc(hidden)]
+	pub const BlockLength: usize = 8;
 	
-	pub(crate) const OneBlockLength: usize = Self::OptionTypeAndLengthOverhead + Self::BlockLength;
+	#[doc(hidden)]
+	pub const OneBlockLength: usize = Self::OptionTypeAndLengthOverhead + Self::BlockLength;
 	
-	pub(crate) const TwoBlocksLength: usize = Self::OneBlockLength + Self::BlockLength;
+	#[doc(hidden)]
+	pub const TwoBlocksLength: usize = Self::OneBlockLength + Self::BlockLength;
 	
-	pub(crate) const ThreeBlocksLength: usize = Self::TwoBlocksLength + Self::BlockLength;
+	#[doc(hidden)]
+	pub const ThreeBlocksLength: usize = Self::TwoBlocksLength + Self::BlockLength;
 	
-	pub(crate) const FourBlocksLength: usize = Self::ThreeBlocksLength + Self::BlockLength;
+	#[doc(hidden)]
+	pub const FourBlocksLength: usize = Self::ThreeBlocksLength + Self::BlockLength;
 	
 	/// Option length.
 	#[inline(always)]

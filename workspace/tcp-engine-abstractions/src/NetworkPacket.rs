@@ -17,7 +17,7 @@ pub trait NetworkPacket
 	
 	#[doc(hidden)]
 	#[inline(always)]
-	fn source_internet_protocol_address<Address: InternetProtocolAddress>(&self) -> &Address
+	fn source_internet_protocol_address<'a, Address: 'a + InternetProtocolAddress>(&self) -> &'a Address
 	{
 		self.offset_into_packet_headers_reference::<Address>(self.internet_protocol_packet_offset() + Address::OffsetOfAddressInsideInternetProtocolPacket)
 	}
@@ -31,7 +31,7 @@ pub trait NetworkPacket
 	
 	#[doc(hidden)]
 	#[inline(always)]
-	fn offset_into_packet_headers_reference<T>(&self, offset: usize) -> &T
+	fn offset_into_packet_headers_reference<'a, T: 'a>(&self, offset: usize) -> &'a T
 	{
 		unsafe { & * self.offset_into_packet_headers(offset).as_ptr() }
 	}

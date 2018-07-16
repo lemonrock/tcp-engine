@@ -21,6 +21,7 @@ version = "0.0.0"
 tcp-engine-authentication = { path = "../tcp-engine-authentication", version = "0.0.0" }
 tcp-engine-collections = { path = "../tcp-engine-collections", version = "0.0.0" }
 tcp-engine-internet-protocol = { path = "../tcp-engine-internet-protocol", version = "0.0.0" }
+tcp-engine-likely = { path = "../tcp-engine-likely", version = "0.0.0" }
 tcp-engine-network-endian = { path = "../tcp-engine-network-endian", version = "0.0.0" }
 tcp-engine-ports = { path = "../tcp-engine-ports", version = "0.0.0" }
 tcp-engine-tcp = { path = "../tcp-engine-tcp", version = "0.0.0" }

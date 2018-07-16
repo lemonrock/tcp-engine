@@ -6,6 +6,7 @@
 #![allow(non_upper_case_globals)]
 #![deny(missing_docs)]
 #![feature(const_fn)]
+#![feature(core_intrinsics)]
 
 
 //! # tcp-engine-abstractions
@@ -15,6 +16,7 @@
 extern crate tcp_engine_authentication;
 extern crate tcp_engine_collections;
 extern crate tcp_engine_internet_protocol;
+#[macro_use] extern crate tcp_engine_likely;
 extern crate tcp_engine_network_endian;
 extern crate tcp_engine_ports;
 extern crate tcp_engine_tcp;
@@ -26,13 +28,15 @@ use ::std::cell::UnsafeCell;
 use ::std::cmp::min;
 use ::std::marker::PhantomData;
 use ::std::mem::size_of;
+use ::std::mem::zeroed;
+use ::std::ops::Index;
 use ::std::ptr::NonNull;
 use ::std::rc::Rc;
 use ::tcp_engine_collections::BoundedHashMap;
 use ::tcp_engine_collections::magic_ring_buffer::*;
 use ::tcp_engine_internet_protocol::ExplicitCongestionNotification;
 use ::tcp_engine_internet_protocol::InternetProtocolAddress;
-use ::tcp_engine_network_endian::NetworkEndianU16;
+use ::tcp_engine_network_endian::*;
 use ::tcp_engine_ports::*;
 use ::tcp_engine_authentication::*;
 use ::tcp_engine_tcp::congestion_control::*;
@@ -43,11 +47,19 @@ use ::tcp_engine_tcp_domain::tcp_options::*;
 use ::tcp_engine_time::*;
 
 
+include!("IncomingSegmentProcessor.drop.rs");
+include!("TcpOptions.parse_options.rs");
+
+
 include!("CheckSumLayering.rs");
 include!("CreateTransmissionControlBlock.rs");
+include!("IncomingSegmentAction.rs");
+include!("IncomingSegmentProcessor.rs");
 include!("MaximumSegmentSizeTable.rs");
+include!("NetworkDeviceInterface.rs");
 include!("NetworkPacket.rs");
 include!("PathMaximumTransmissionUnitTable.rs");
+include!("TcpOptionsBitSet.rs");
 include!("TransmissionControlBlockAbstractions.rs");
 include!("TransmissionControlBlockEventsReceiver.rs");
 include!("TransmissionControlBlockEventsReceiverCreator.rs");

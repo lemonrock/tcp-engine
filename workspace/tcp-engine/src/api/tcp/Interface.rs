@@ -7,7 +7,7 @@ pub struct Interface<TCBA: TransmissionControlBlockAbstractions>
 {
 	transmission_control_block_abstractions: TCBA,
 	maximum_segment_size_table: MaximumSegmentSizeTable<TCBA::Address, TCBA::PMTUTable>,
-	check_sum_layering: CheckSumLayering,
+	incoming_segment_processor: v,
 	listening_server_port_combination_validity: PortCombinationValidity,
 	local_internet_protocol_address: TCBA::Address,
 	transmission_control_blocks: TransmissionControlBlocks<TCBA, TransmissionControlBlock<TCBA>>,
@@ -33,7 +33,10 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		{
 			transmission_control_block_abstractions,
 			maximum_segment_size_table: MaximumSegmentSizeTable::new(path_maximum_transmission_unit_table),
-			check_sum_layering,
+			incoming_segment_processor: IncomingSegmentProcessor
+			{
+				check_sum_layering,
+			},
 			listening_server_port_combination_validity,
 			local_internet_protocol_address,
 			transmission_control_blocks: TransmissionControlBlocks::new(transmission_control_blocks_map_capacity, maximum_recent_connections_capacity),
@@ -48,208 +51,6 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 	pub fn progress_alarms(&self) -> MonotonicMillisecondTimestamp
 	{
 		self.alarms.progress(self)
-	}
-	
-	/// NOTE: RFC 2675 IPv6 jumbograms are not supported.
-	///
-	/// This logic DOES NOT validate:-
-	///
-	/// * that source and destination addreses are permitted, eg are not multicast (this is the responsibility of lower layers);
-	/// * that the source and destination addresses (and ports) are not the same.
-	///
-	/// `layer_4_packet_size` is NOT the same as the IPv6 payload size; in this case, it is the IPv6 payload size LESS the extensions headers size.
-	#[inline(always)]
-	pub fn incoming_segment(&self, now: MonotonicMillisecondTimestamp, packet: TCBA::Packet, layer_4_packet_size: usize)
-	{
-		// Validates:-
-		//
-		// * That the `tcp_segment_offset` is within the packet (debug only).
-		// * That the TCP fixed header (ie the frame excluding options) can fit inside the packet.
-		// * That the TCP header length valid is valid.
-		// * That the TCP header (fixed and options) can fit inside the packet.
-		macro_rules! tcp_segment_of_valid_length
-		{
-			($self: ident, $packet: ident, $tcp_segment_length: ident) =>
-			{
-				{
-					let tcp_segment_offset = $packet.layer_4_packet_offset::<TCBA::Address>();
-					
-					if unlikely!(tcp_segment_length < size_of::<TcpFixedHeader>())
-					{
-						drop!($self, $packet, "TCP frame (segment) is shorted than minimum size of TCP fixed header (excluding options)")
-					}
-					
-					let tcp_segment = $packet.offset_into_data_reference::<TcpSegment>($tcp_segment_offset);
-					
-					let raw_data_length_bytes = tcp_segment.raw_data_length_bytes();
-					
-					if unlikely!(raw_data_length_bytes < (5 << 4))
-					{
-						drop!($self, $packet, "TCP header length 32-bit words was too small (less than 5)")
-					}
-					
-					let header_length_in_bytes_including_options = raw_data_length_bytes as usize;
-					
-					if unlikely!(tcp_segment_length < header_length_in_bytes_including_options)
-					{
-						drop!($self, $packet, "TCP frame (segment) length is less than that indicated by its own header length, ie the TCP frame is cut short")
-					}
-					
-					let options_length = header_length_in_bytes_including_options - size_of::<TcpFixedHeader>();
-					
-					(tcp_segment, tcp_segment_length, options_length)
-				}
-			}
-		}
-		
-		macro_rules! finish_parsing_of_tcp_segment
-		{
-			($self: ident, $now: ident, $packet: ident, $smallest_acceptable_tcp_maximum_segment_size_option: ident, $options_length: ident, $all_flags: ident, $source_internet_protocol_address: ident, $SEG: ident, $tcp_segment_length: ident) =>
-			{
-				{
-					let options_data_pointer = $SEG.options_data_pointer();
-					let tcp_options = parse_options!($self, $packet, $smallest_acceptable_tcp_maximum_segment_size_option, options_data_pointer, $options_length, $all_flags);
-					ParsedTcpSegment::new($now, $packet, $self, $source_internet_protocol_address, $SEG, tcp_options, $options_length, $tcp_segment_length)
-				}
-			}
-		}
-		
-		macro_rules! validate_connection_establishment_segment
-		{
-			($self: ident, $now: ident, $packet: ident, $smallest_acceptable_tcp_maximum_segment_size_option: ident, $options_length: ident, $all_flags: ident, $source_internet_protocol_address: ident, $SEG: ident, $tcp_segment_length: ident) =>
-			{
-				{
-					if $self.listening_server_port_combination_validity.port_combination_is_invalid($SEG.source_port_destination_port())
-					{
-						drop!($self, $packet, "TCP connection establishment segment (Synchronize or Acknowledgment) is not from an acceptable combination of source (remote) port and destination (local) port")
-					}
-					
-					finish_parsing_of_tcp_segment!($self, $now, $packet, $smallest_acceptable_tcp_maximum_segment_size_option, $options_length, $all_flags, $source_internet_protocol_address, $SEG, $tcp_segment_length)
-				}
-			}
-		}
-		
-		macro_rules! received_synchronize_when_state_is_listen_or_synchronize_received
-		{
-			($self: ident, $now: ident, $packet: ident, $smallest_acceptable_tcp_maximum_segment_size_option: ident, $options_length: ident, $all_flags: ident, $source_internet_protocol_address: ident, $SEG: ident, $tcp_segment_length: ident, $explicit_congestion_notification_supported: expr) =>
-			{
-				{
-					// Implied from RFC 793 Section 3.7 Open Call CLOSED State page 54: "A SYN segment of the form <SEQ=ISS><CTL=SYN> is sent".
-					if unlikely!($SEG.ACK().is_not_zero())
-					{
-						drop!($self, $packet, "TCP Synchronize segment has a non-zero initial ACK field")
-					}
-					
-					if cfg!(not(feature = "rfc-8311-permit-explicit-congenstion-markers-on-all-packets"))
-					{
-						// RFC 3168 Section 6.1.1: "A host MUST NOT set ECT on SYN or SYN-ACK packets".
-						if unlikely!($packet.explicit_congestion_notification().is_ect_or_congestion_experienced_set())
-						{
-							drop!($self, $packet, "TCP packet has an Internet Protocol Explicit Congestion Notification (ECN) set for a Synchronize segment in violation of RFC 3168")
-						}
-					}
-					
-					let mut parsed_tcp_segment = validate_connection_establishment_segment!($self, $now, $packet, $smallest_acceptable_tcp_maximum_segment_size_option, $options_length, $all_flags, $source_internet_protocol_address, $SEG, $tcp_segment_length);
-					parsed_tcp_segment.received_synchronize_when_state_is_listen_or_synchronize_received($explicit_congestion_notification_supported)
-				}
-			}
-		}
-		
-		macro_rules! received_acknowledgment_when_state_is_listen_or_synchronize_received
-		{
-			($self: ident, $now: ident, $packet: ident, $smallest_acceptable_tcp_maximum_segment_size_option: ident, $options_length: ident, $all_flags: ident, $source_internet_protocol_address: ident, $SEG: ident, $tcp_segment_length: ident) =>
-			{
-				{
-					if unlikely!($self.transmission_control_blocks.at_maximum_capacity())
-					{
-						drop!($self, $SEG, "TCP at maximum capacity")
-					}
-					
-					let mut parsed_tcp_segment = validate_connection_establishment_segment!($self, $now, $packet, $smallest_acceptable_tcp_maximum_segment_size_option, $options_length, $all_flags, $source_internet_protocol_address, $SEG, $tcp_segment_length);
-					parsed_tcp_segment.received_acknowledgment_when_state_is_listen_or_synchronize_received()
-				}
-			}
-		}
-		
-		let tcp_segment_length = layer_4_packet_size;
-		let (SEG, options_length) = tcp_segment_of_valid_length!(self, packet, tcp_segment_length);
-		
-		let all_flags = SEG.all_flags();
-		
-		if unlikely!(all_flags.are_null())
-		{
-			drop!(self, packet, "TCP null scan")
-		}
-		
-		// RFC 3360 Section 2.1: "... the Reserved field should be zero when sent and ignored when received, unless specified otherwise by future standards actions".
-		//
-		// We VIOLATE the RFC here.
-		if unlikely!(SEG.are_reserved_bits_set_or_has_historic_nonce_sum_flag())
-		{
-			// RFC 3360 Section 2.1: "... the phrasing in RFC 793 does not permit sending resets in response to TCP	packets with a non-zero Reserved field, as is explained in the section above".
-			drop!(self, packet, "TCP reserved bits are set or have historic Nonce Sum (NS) flag set")
-		}
-		
-		if unlikely!(all_flags.has_urgent_flag())
-		{
-			drop!(self, packet, "TCP URG flag is not supported")
-		}
-		else if cfg!(feature = "drop-urgent-pointer-field-non-zero")
-		{
-			if unlikely!(SEG.urgent_pointer_if_URG_flag_set_is_not_zero())
-			{
-				drop!(self, packet, "TCP drop-urgent-pointer-field-non-zero")
-			}
-		}
-		
-		let source_internet_protocol_address = packet.source_internet_protocol_address(internet_protocol_packet_offset);
-		
-		if unlikely!(self.is_tcp_check_sum_invalid(SEG, layer_4_packet_size, source_internet_protocol_address))
-		{
-			drop!(self, packet, "TCP check sum is invalid")
-		}
-		
-		let smallest_acceptable_tcp_maximum_segment_size_option = MaximumSegmentSizeOption(TCBA::Address::SmallestAcceptableMaximumSegmentSize);
-		
-		match self.find_transmission_control_block_for_incoming_segment(source_internet_protocol_address, SEG)
-		{
-			// State is either Listen or SynchronizeReceived.
-			None => match all_flags
-			{
-				Flags::Synchronize => received_synchronize_when_state_is_listen_or_synchronize_received!(self, now, packet, smallest_acceptable_tcp_maximum_segment_size_option, options_length, all_flags, source_internet_protocol_address, SEG, tcp_segment_length, false),
-				
-				Flags::SynchronizeExplicitCongestionEchoCongestionWindowReduced => received_synchronize_when_state_is_listen_or_synchronize_received!(self, now, packet, options_length, all_flags, source_internet_protocol_address, SEG, tcp_segment_length, true),
-				
-				Flags::Acknowledgment | Flags::AcknowledgmentPush => received_acknowledgment_when_state_is_listen_or_synchronize_received!(self, now, packet, smallest_acceptable_tcp_maximum_segment_size_option, options_length, all_flags, source_internet_protocol_address, SEG, tcp_segment_length),
-				
-				// "A Finite State Machine Model of TCP Connections in the Transport Layer", J. Treurniet and J. H. Lefebvre, 2003 (http://cradpdf.drdc-rddc.gc.ca/PDFS/unc25/p520460.pdf) pages 5 & 6:-
-				// State that whilst these states are techically valid, they are probably a scan.
-				//
-				// We VIOLATE RFC 793 here; to send a Reset is to either reveal to a potential attacker that we exist OR to inadvertently abort because of a spoofed packet an existing connection.
-				//
-				// As such, rather than sending a Reset (which is technically the correct thing to do), we just drop the packet.
-				Flags::FinishAcknowledgment | Flags::FinishAcknowledgmentPush | Flags::ResetAcknowledgment => drop!(self, packet, "TCP FinishAcknowledgment, FinishAcknowledgmentPush or ResetAcknowledgment segment when replying to a syncookie (ignored)"),
-				
-				// RFC 5961 Section 3.2 Page 8:-
-				// "In all states except SYN-SENT, all reset (RST) packets are validated by checking their SEQ-fields [sequence numbers].
-				// A reset is valid if its sequence number exactly matches the next expected sequence number.
-				// If the RST arrives and its sequence number field does NOT match the next expected sequence number but is within the window, then the receiver should generate an ACK \*.
-				// In all other cases, where the SEQ-field does not match and is outside the window, the receiver MUST silently discard the segment."
-				//
-				// \* This is known as a 'Challenge ACK'.
-				//
-				// We VIOLATE RFC 5961 here and do not send a 'Challenge ACK' under any circumstances: to do so would be to reveal that a syncookie we sent as an initial challenge is INVALID.
-				Flags::Reset => drop!(self, packet, "TCP Reset segment when replying to a syncookie (ignored)"),
-				
-				_ => drop!(self, packet, "TCP segment contained a combination of flags invalid for replying to a syncookie"),
-			}
-			
-			Some(transmission_control_block) =>
-			{
-				let mut parsed_tcp_segment = finish_parsing_of_tcp_segment!(self, now, packet, smallest_acceptable_tcp_maximum_segment_size_option, options_length, all_flags, source_internet_protocol_address, SEG, tcp_segment_length);
-				parsed_tcp_segment.process_tcp_segment_when_state_is_other_than_listen_or_synchronize_received(transmission_control_block)
-			}
-		}
 	}
 	
 	#[inline(always)]
@@ -268,6 +69,20 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		
 		Ok(())
 	}
+	
+	/// NOTE: RFC 2675 IPv6 jumbograms are not supported.
+	///
+	/// This logic DOES NOT validate:-
+	///
+	/// * that source and destination addreses are permitted, eg are not multicast (this is the responsibility of lower layers);
+	/// * that the source and destination addresses (and ports) are not the same.
+	///
+	/// `layer_4_packet_size` is NOT the same as the IPv6 payload size; in this case, it is the IPv6 payload size LESS the extensions headers size.
+	#[inline(always)]
+	pub fn process_incoming_segment(&self, now: MonotonicMillisecondTimestamp, packet: TCBA::Packet, layer_4_packet_size: usize)
+	{
+		self.incoming_segment_processor.process_incoming_segment::<ParsedTcpSegment, Self>::(now, packet, layer_4_packet_size, self)
+	}
 }
 
 /// Incoming segments.
@@ -278,28 +93,13 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 	{
 		self.syn_cookie_protection.validate_syncookie_in_acknowledgment(&self.local_internet_protocol_address, remote_internet_protocol_address, SEG.ACK, SEG.SEQ, SEG.source_port_destination_port())
 	}
-	
-	#[inline(always)]
-	fn is_tcp_check_sum_invalid(&self, SEG: &TcpSegment, layer_4_packet_size: usize, remote_internet_protocol_address: &TCBA::Address) -> bool
-	{
-		self.check_sum_layering.is_tcp_check_sum_invalid(SEG, layer_4_packet_size, remote_internet_protocol_address, &self.local_internet_protocol_address)
-	}
-	
-	#[inline(always)]
-	fn dropped_packet_explanation(&self, explanation: &'static str)
-	{
-		if cfg!(debug_assertions)
-		{
-			eprintln!("Dropped packet '{}'", explanation)
-		}
-	}
 }
 
 /// Transmission control blocks.
 impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 {
 	#[inline(always)]
-	pub(crate) fn new_transmission_control_block_for_incoming_segment(&self, source_internet_protocol_address: &TCBA::Address, SEG: &ParsedTcpSegment<TCBA>, tcp_options: &TcpOptions, parsed_syncookie: ParsedSynCookie, now: MonotonicMillisecondTimestamp, md5_authentication_key: Option<&Rc<Md5PreSharedSecretKey>>) -> &mut TransmissionControlBlock<TCBA>
+	pub(crate) fn new_transmission_control_block_for_incoming_segment(&self, source_internet_protocol_address: &TCBA::Address, SEG: &ParsedTcpSegment<TCBA>, tcp_options: &TcpOptions, parsed_syncookie: ParsedSynCookie, now: MonotonicMillisecondTimestamp, md5_authentication_key: Option<Rc<Md5PreSharedSecretKey>>) -> &mut TransmissionControlBlock<TCBA>
 	{
 		self.transmission_control_blocks.new_transmission_control_block_for_incoming_segment(source_internet_protocol_address, SEG.SEG, SEG.WND, tcp_options, parsed_syncookie, now, md5_authentication_key, &self.maximum_segment_size_table)
 	}

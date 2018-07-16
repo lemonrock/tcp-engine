@@ -19,11 +19,11 @@ pub(crate) struct ParsedTcpSegment<'a, 'b, TCBA: 'a + 'b + TransmissionControlBl
 	LEN: u32,
 }
 
-/// Entry Point methods.
-impl<'a, 'b, TCBA: 'a + 'b + TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b, TCBA>
+/// Actions to take for an incoming segment.
+impl<TCBA: TransmissionControlBlockAbstractions, I: NetworkDeviceInterface<TCBA>> IncomingSegmentAction<TCBA, I> for ParsedTcpSegment<TCBA>
 {
 	#[inline(always)]
-	pub(crate) fn new(now: MonotonicMillisecondTimestamp, packet: TCBA::Packet, interface: &'a Interface<TCBA>, source_internet_protocol_address: &'b TCBA::Address, SEG: &'b TcpSegment, tcp_options: TcpOptions, options_length: usize, tcp_segment_length: usize) -> Self
+	fn new<'a, 'b>(now: MonotonicMillisecondTimestamp, packet: TCBA::Packet, interface: &'a I, source_internet_protocol_address: &'b TCBA::Address, SEG: &'b TcpSegment, tcp_options: TcpOptions, options_length: usize, tcp_segment_length: usize) -> Self
 	{
 		let payload_length = tcp_segment_length - size_of::<TcpFixedHeader>() - options_length;
 		
@@ -45,19 +45,7 @@ impl<'a, 'b, TCBA: 'a + 'b + TransmissionControlBlockAbstractions> ParsedTcpSegm
 	}
 	
 	#[inline(always)]
-	fn has_data(&self) -> bool
-	{
-		self.payload_length != 0
-	}
-	
-	#[inline(always)]
-	fn does_not_have_data(&self) -> bool
-	{
-		self.payload_length == 0
-	}
-	
-	#[inline(always)]
-	pub(crate) fn received_synchronize_when_state_is_listen_or_synchronize_received(&mut self, explicit_congestion_notification_supported: bool, md5_authentication_key: Option<&Rc<Md5PreSharedSecretKey>>)
+	fn received_synchronize_when_state_is_listen_or_synchronize_received(&mut self, md5_authentication_key: Option<Rc<Md5PreSharedSecretKey>>, explicit_congestion_notification_supported: bool)
 	{
 		if self.has_data()
 		{
@@ -80,14 +68,11 @@ impl<'a, 'b, TCBA: 'a + 'b + TransmissionControlBlockAbstractions> ParsedTcpSegm
 	}
 	
 	#[inline(always)]
-	pub(crate) fn received_acknowledgment_when_state_is_listen_or_synchronize_received(&mut self, md5_authentication_key: Option<&Rc<Md5PreSharedSecretKey>>)
+	fn received_acknowledgment_when_state_is_listen_or_synchronize_received(&mut self, md5_authentication_key: Option<Rc<Md5PreSharedSecretKey>>)
 	{
 		validate_authentication!(self);
 		
-		let SEG = self;
-		let interface = self.interface;
-		
-		let parsed_syncookie = match interface.validate_syncookie(self.source_internet_protocol_address, SEG)
+		let parsed_syncookie = match self.interface.validate_syncookie(self.source_internet_protocol_address, self)
 		{
 			Ok(parsed_syn_cookie) => parsed_syn_cookie,
 			
@@ -97,13 +82,13 @@ impl<'a, 'b, TCBA: 'a + 'b + TransmissionControlBlockAbstractions> ParsedTcpSegm
 			Err(()) => invalid!(SEG, "TCP Acknowledgment-like syncookie invalid (Reset <SEQ=SEG.ACK><CTL=RST> not sent)"),
 		};
 		
-		let transmission_control_block = interface.new_transmission_control_block_for_incoming_segment(&self.source_internet_protocol_address, self, &self.tcp_options, parsed_syncookie, self.now, md5_authentication_key);
+		let transmission_control_block = self.interface.new_transmission_control_block_for_incoming_segment(&self.source_internet_protocol_address, self, &self.tcp_options, parsed_syncookie, self.now, md5_authentication_key);
 		
 		self.process_tcp_segment_when_state_is_other_than_listen_or_synchronize_received(transmission_control_block)
 	}
 	
 	#[inline(always)]
-	pub(crate) fn process_tcp_segment_when_state_is_other_than_listen_or_synchronize_received(&mut self, transmission_control_block: &mut TransmissionControlBlock<TCBA>)
+	fn process_tcp_segment_when_state_is_other_than_listen_or_synchronize_received(&mut self, transmission_control_block: &mut TransmissionControlBlock<TCBA>)
 	{
 		use self::State::*;
 		
@@ -147,6 +132,18 @@ impl<'a, 'b, TCBA: 'a + 'b + TransmissionControlBlockAbstractions> ParsedTcpSegm
 /// Handling for all states where these is a Transmission Control Block (TCB).
 impl<'a, 'b, TCBA: TransmissionControlBlockAbstractions> ParsedTcpSegment<'a, 'b, TCBA>
 {
+	#[inline(always)]
+	fn has_data(&self) -> bool
+	{
+		self.payload_length != 0
+	}
+	
+	#[inline(always)]
+	fn does_not_have_data(&self) -> bool
+	{
+		self.payload_length == 0
+	}
+	
 	#[inline(always)]
 	fn synchronize_sent(&mut self, transmission_control_block: &TransmissionControlBlock<TCBA>)
 	{

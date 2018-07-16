@@ -7,7 +7,7 @@
 /// Maximum Segment Size is also called 'MSS'.
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 #[repr(C, packed)]
-pub struct MaximumSegmentSizeOption(pub NetworkEndianU16);
+pub struct MaximumSegmentSizeOption(MaximumSegmentSize);
 
 impl Default for MaximumSegmentSizeOption
 {
@@ -16,7 +16,7 @@ impl Default for MaximumSegmentSizeOption
 	{
 		const MaximumOf536BigEndian: [u8; 2] = [2, 24];
 		
-		MaximumSegmentSizeOption(NetworkEndianU16::from_network_endian(MaximumOf536BigEndian))
+		MaximumSegmentSizeOption(MaximumSegmentSize::from(NetworkEndianU16::from_network_endian(MaximumOf536BigEndian)))
 	}
 }
 
@@ -25,15 +25,35 @@ impl From<u16> for MaximumSegmentSizeOption
 	#[inline(always)]
 	fn from(value: u16) -> Self
 	{
-		MaximumSegmentSizeOption(NetworkEndianU16::from_native_endian(value))
+		MaximumSegmentSizeOption(MaximumSegmentSize::from(NetworkEndianU16::from_native_endian(value)))
+	}
+}
+
+impl From<NetworkEndianU16> for MaximumSegmentSizeOption
+{
+	#[inline(always)]
+	fn from(value: NetworkEndianU16) -> Self
+	{
+		MaximumSegmentSizeOption(MaximumSegmentSize::from(value))
+	}
+}
+
+impl From<MaximumSegmentSize> for MaximumSegmentSizeOption
+{
+	#[inline(always)]
+	fn from(value: MaximumSegmentSize) -> Self
+	{
+		MaximumSegmentSizeOption(value)
 	}
 }
 
 impl MaximumSegmentSizeOption
 {
-	pub(crate) const Kind: u8 = 2;
+	#[doc(hidden)]
+	pub const Kind: u8 = 2;
 	
-	pub(crate) const KnownLength: usize = 4;
+	#[doc(hidden)]
+	pub const KnownLength: usize = 4;
 	
 	/// To native endian.
 	#[inline(always)]

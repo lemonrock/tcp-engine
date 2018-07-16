@@ -21,9 +21,11 @@ pub struct TimestampsOption
 
 impl TimestampsOption
 {
-	pub(crate) const Kind: u8 = 8;
+	#[doc(hidden)]
+	pub const Kind: u8 = 8;
 	
-	pub(crate) const KnownLength: usize = 10;
+	#[doc(hidden)]
+	pub const KnownLength: usize = 10;
 	
 	#[allow(missing_docs)]
 	#[inline(always)]

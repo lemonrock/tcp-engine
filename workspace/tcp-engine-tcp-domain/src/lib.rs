@@ -35,11 +35,9 @@ use ::std::marker::PhantomData;
 use ::std::mem::ManuallyDrop;
 use ::std::mem::needs_drop;
 use ::std::mem::size_of;
-use ::std::mem::zeroed;
 use ::std::mem::uninitialized;
 use ::std::ops::Add;
 use ::std::ops::AddAssign;
-use ::std::ops::Index;
 use ::std::ops::Shl;
 use ::std::ops::Shr;
 use ::std::ops::Sub;
@@ -48,14 +46,14 @@ use ::std::ptr::NonNull;
 use ::std::slice::from_raw_parts;
 use ::tcp_engine_authentication::*;
 use ::tcp_engine_check_sum::Rfc1141CompliantCheckSum;
-use ::tcp_engine_internet_protocol::InternetProtocolAddress;
+use ::tcp_engine_internet_protocol::*;
 use ::tcp_engine_network_endian::*;
 use ::tcp_engine_ports::*;
 use ::tcp_engine_time::*;
 
 
 /// TCP options.
-#[macro_use] pub mod tcp_options;
+pub mod tcp_options;
 
 
 /// Retransmission.

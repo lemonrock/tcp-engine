@@ -78,7 +78,7 @@ macro_rules! parse_selective_acknowledgment_block
 	{
 		{
 			let block: (NetworkEndianU32, NetworkEndianU32) = unsafe { * ($pointer_to_block as *const (NetworkEndianU32, NetworkEndianU32)) };
-			let block = (WrappingSequenceNumber(block.0.to_native_endian()), WrappingSequenceNumber(block.1.to_native_endian()));
+			let block = (WrappingSequenceNumber::from(block.0.to_native_endian()), WrappingSequenceNumber::from(block.1.to_native_endian()));
 			let left_edge_of_block = block.0;
 			let right_edge_of_block = block.1;
 			let right_edge_of_block_is_not_greater_than_left_edge = !(block.0 < block.1);
@@ -129,7 +129,7 @@ macro_rules! parse_options
 							// Note that this check could be made more efficient by looping 8 bytes at a time.
 							while pointer_to_padding != end_pointer
 							{
-								if unlikely!(unsafe { *(pointer_to_padding as *const u8) } != 0x00)
+								if unlikely!(*(pointer_to_padding as *const u8) != 0x00)
 								{
 									drop!($interface, $packet, "Padding at end of options list was not zero")
 								}
@@ -176,7 +176,7 @@ macro_rules! parse_options
 						
 						let pointer_to_data = parse_option_known_length!($interface, $packet, pointer_to_option_kind, end_pointer, KnownLength);
 						
-						let maximum_segment_size = MaximumSegmentSizeOption(unsafe { *(pointer_to_data as *const NetworkEndianU16) });
+						let maximum_segment_size = MaximumSegmentSizeOption::from(unsafe { *(pointer_to_data as *const NetworkEndianU16) });
 						if unlikely!(maximum_segment_size < $smallest_acceptable_tcp_maximum_segment_size_option)
 						{
 							drop!($interface, $packet, "TCP option maximum segment size was smaller than smallest_acceptable_tcp_maximum_segment_size_option")
@@ -212,7 +212,7 @@ macro_rules! parse_options
 							{
 								drop!($interface, $packet, "TCP option window scale exceeded the RFC 7323 maximum of 14")
 							}
-							Some(WindowScaleOption(raw_window_scale))
+							Some(WindowScaleOption::from(raw_window_scale))
 						};
 						
 						KnownLength
@@ -257,16 +257,6 @@ macro_rules! parse_options
 						}
 
 						let length = parse_option_variable_length_including_option_kind_and_length_fields!($interface, $packet, pointer_to_option_kind, end_pointer) as usize;
-						
-						const BlockLength: usize = 8;
-						
-						const OneBlockLength: usize = 2 + BlockLength;
-						
-						const TwoBlocksLength: usize = OneBlockLength + BlockLength;
-						
-						const ThreeBlocksLength: usize = TwoBlocksLength + BlockLength;
-						
-						const FourBlocksLength: usize = ThreeBlocksLength + BlockLength;
 						
 						let pointer_to_first_block = pointer_to_option_kind + TcpOptions::LengthOverhead;
 						
@@ -432,7 +422,7 @@ macro_rules! parse_options
 										drop!($interface, $packet, "TCP option User Time Out had an invalid all-zero time out")
 									}
 									
-									Some(UserTimeOutOption(raw_user_timeout))
+									Some(UserTimeOutOption::from(raw_user_timeout))
 								};
 							},
 							
@@ -518,8 +508,8 @@ macro_rules! parse_options
 					// 42 or 43
 					
 					// RFC 4727 Section 7.3.
-					253 _ => parse_unsupported_or_unknown_option!($interface, $packet, pointer_to_option_kind, end_pointer, duplicate_unknown_options, 253),
-					254 _ => parse_unsupported_or_unknown_option!($interface, $packet, pointer_to_option_kind, end_pointer, duplicate_unknown_options, 254),
+					253 => parse_unsupported_or_unknown_option!($interface, $packet, pointer_to_option_kind, end_pointer, duplicate_unknown_options, 253),
+					254 => parse_unsupported_or_unknown_option!($interface, $packet, pointer_to_option_kind, end_pointer, duplicate_unknown_options, 254),
 					
 					// RFC 1122 Section 4.2.2.5: "A TCP MUST ignore without error any TCP option it does not implement, assuming that the option has a length field (all TCP options defined in the future will have length fields)."
 					option_kind @ _ => parse_unsupported_or_unknown_option!($interface, $packet, pointer_to_option_kind, end_pointer, duplicate_unknown_options, option_kind),

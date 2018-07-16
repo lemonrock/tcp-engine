@@ -9,9 +9,12 @@ pub struct AuthenticationOption(pub Authentication);
 
 impl AuthenticationOption
 {
-	pub(crate) const Kind: u8 = 29;
+	#[doc(hidden)]
+	pub const Kind: u8 = 29;
 	
-	pub(crate) const Md5SignatureOptionKind: u8 = 19;
+	#[doc(hidden)]
+	pub const Md5SignatureOptionKind: u8 = 19;
 	
-	pub(crate) const Md5SignatureOptionKnownLength: usize = 18;
+	#[doc(hidden)]
+	pub const Md5SignatureOptionKnownLength: usize = 18;
 }

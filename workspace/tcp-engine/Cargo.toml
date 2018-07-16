@@ -33,14 +33,14 @@ tcp-engine-time = { path = "../tcp-engine-time", version = "0.0.0" }
 
 
 [features]
-default = ["dpdk-sys", "rfc-8311-permit-explicit-congenstion-markers-on-all-packets", "rfc-4821-minimum-ipv4-path-mtu", "increase-ipv4-mss-acceptable-minimum-to-1024", "increase-ipv6-mss-acceptable-minimum-to-1220", "drop-urgent-pointer-field-non-zero", "drop-options-padding-non-zero", "drop-options-known-fixed-length-invalid", "server-drop-source-port-0"]
+default = ["dpdk-sys", "rfc-8311-permit-explicit-congestion-markers-on-all-packets", "rfc-4821-minimum-ipv4-path-mtu", "increase-ipv4-mss-acceptable-minimum-to-1024", "increase-ipv6-mss-acceptable-minimum-to-1220", "drop-urgent-pointer-field-non-zero", "drop-options-padding-non-zero", "drop-options-known-fixed-length-invalid", "server-drop-source-port-0"]
 
 # Disables checks that drop packets if they have Explicit Congestion Notification codepoints ECT(0) or ECT(1) or the Congestion Experienced (CE) flag set in violation of RFC 3168.
 #
 # Enabled by default.
 #
 # Also implies passive support for RFC 5562.
-rfc-8311-permit-explicit-congenstion-markers-on-all-packets = []
+rfc-8311-permit-explicit-congestion-markers-on-all-packets = []
 
 # Increases the default Internet Protocol Version 4 Path Maximum Transmission Unit (PathMTU or just MTU) size from 576 bytes to 1024 bytes as recommended in RFC 4821 Section 7.2 Paragraph 2.
 #

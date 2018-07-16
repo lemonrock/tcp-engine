@@ -7,11 +7,31 @@
 #[repr(C, packed)]
 pub struct UserTimeOutOption(NetworkEndianU32);
 
+impl From<NetworkEndianU32> for UserTimeOutOption
+{
+	#[inline(always)]
+	fn from(value: NetworkEndianU32) -> Self
+	{
+		UserTimeOutOption(value)
+	}
+}
+
+impl Into<NetworkEndianU32> for UserTimeOutOption
+{
+	#[inline(always)]
+	fn into(self) -> NetworkEndianU32
+	{
+		self.0
+	}
+}
+
 impl UserTimeOutOption
 {
-	pub(crate) const Kind: u8 = 28;
+	#[doc(hidden)]
+	pub const Kind: u8 = 28;
 	
-	pub(crate) const KnownLength: usize = 4;
+	#[doc(hidden)]
+	pub const KnownLength: usize = 4;
 	
 	/// See Section 13.3.5 of TCP/IP Illustrated, Volume 1 for this calculation.
 	///

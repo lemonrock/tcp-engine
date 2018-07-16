@@ -21,6 +21,7 @@ version = "0.0.0"
 hyper-thread-random = "^0.4"
 sha2 = { version = "^0.7", features = ["asm"] }
 siphasher = "^0.2"
+tcp-engine-authentication = { path = "../tcp-engine-authentication", version = "0.0.0" }
 tcp-engine-check-sum = { path = "../tcp-engine-check-sum", version = "0.0.0" }
 tcp-engine-collections = { path = "../tcp-engine-collections", version = "0.0.0" }
 tcp-engine-internet-protocol = { path = "../tcp-engine-internet-protocol", version = "0.0.0" }

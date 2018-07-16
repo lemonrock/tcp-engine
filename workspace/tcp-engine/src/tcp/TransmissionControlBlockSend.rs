@@ -236,6 +236,24 @@ impl TransmissionControlBlockSend
 	}
 	
 	#[inline(always)]
+	pub(crate) fn all_data_acknowledged(&self) -> bool
+	{
+		self.retransmission_queue.is_empty()
+	}
+	
+	#[inline(always)]
+	pub(crate) fn has_data_unacknowledged(&self) -> bool
+	{
+		!self.all_data_acknowledged()
+	}
+	
+	#[inline(always)]
+	pub(crate) fn retransmission_queue_is_not_full(&self) -> bool
+	{
+		self.retransmission_queue.is_not_full()
+	}
+	
+	#[inline(always)]
 	pub(crate) fn rwnd(&self) -> u32
 	{
 		self.WND.into()
@@ -296,18 +314,6 @@ impl TransmissionControlBlockSend
 	{
 		// TODO: Is this used?
 		self.retransmission_queue.enqueue(now, starts_at, data_length_excluding_length_of_synchronize_and_finish_controls, flags)
-	}
-	
-	#[inline(always)]
-	pub(crate) fn all_data_acknowledged(&self) -> bool
-	{
-		self.retransmission_queue.is_empty()
-	}
-	
-	#[inline(always)]
-	pub(crate) fn retransmission_queue_is_not_full(&self) -> bool
-	{
-		self.retransmission_queue.is_not_full()
 	}
 	
 	#[inline(always)]

@@ -123,12 +123,14 @@ impl Timestamping
 		}
 	}
 	
-	#[allow(missing_docs)]
+	/// RFC 7323, Section 4.1: "The difference between a received TSecr value and the current timestamp clock value provides an RTT measurement".
 	#[inline(always)]
-	pub fn measurement_of_round_trip_time(&self, now: MonotonicMillisecondTimestamp, TSecr: NetworkEndianU32) -> Option<MillisecondDuration>
+	pub fn measurement_of_round_trip_time(&self, now: MonotonicMillisecondTimestamp, timestamps_option: &TimestampsOption) -> Option<MillisecondDuration>
 	{
+		let TSecr = timestamps_option.TSecr.to_native_endian();
+		
 		let now_u32: u32 = now.into();
-		let real_time_stamp = WrappingTimestamp::from(TSecr.to_native_endian().wrapping_sub(self.our_offset));
+		let real_time_stamp = WrappingTimestamp::from(TSecr.wrapping_sub(self.our_offset));
 		let relative_difference = WrappingTimestamp::from(now_u32).relative_difference(real_time_stamp);
 		
 		if likely!(relative_difference >= 0)

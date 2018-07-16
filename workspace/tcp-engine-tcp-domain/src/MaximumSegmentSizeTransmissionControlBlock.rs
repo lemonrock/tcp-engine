@@ -25,6 +25,13 @@ pub trait MaximumSegmentSizeTransmissionControlBlock<Address: InternetProtocolAd
 		self.set_field_maximum_segment_size_to_send_to_remote(maximum_segment_size_to_send_to_remote)
 	}
 	
+	/// What is the maximum segment payload size (in bytes)?
+	#[inline(always)]
+	fn maximum_segment_payload_size(&self, padded_options_size: usize) -> u32
+	{
+		(self.get_field_maximum_segment_size_to_send_to_remote() as u32) - ((size_of::<TcpFixedHeader>() + padded_options_size) as u32)
+	}
+	
 	#[doc(hidden)]
 	#[inline(always)]
 	fn get_field_maximum_segment_size_to_send_to_remote(&self) -> u16;

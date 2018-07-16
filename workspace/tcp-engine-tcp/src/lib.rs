@@ -16,6 +16,7 @@
 extern crate hyper_thread_random;
 extern crate sha2;
 extern crate siphasher;
+extern crate tcp_engine_authentication;
 extern crate tcp_engine_check_sum;
 extern crate tcp_engine_collections;
 extern crate tcp_engine_internet_protocol;
@@ -34,6 +35,10 @@ pub mod congestion_control;
 pub mod recent_connection_data;
 
 
+/// Sending TCP segments.
+pub mod send;
+
+
 /// SYN cookies.
 pub mod syn_cookies;
 
@@ -49,6 +54,7 @@ use ::std::cmp::min;
 use ::std::mem::size_of;
 use ::std::mem::transmute;
 use ::tcp_engine_collections::least_recently_used_cache::LeastRecentlyUsedCacheWithExpiry;
+pub use ::tcp_engine_authentication::*;
 pub use ::tcp_engine_check_sum::Digest;
 use ::tcp_engine_internet_protocol::*;
 #[allow(unused_imports)] use ::tcp_engine_network_endian::NetworkEndian;

@@ -493,7 +493,21 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 /// Sending.
 impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 {
-	fn send_synchronize(&self, packet: TCBA::Packet, our_tcp_segment: &mut TcpSegment, transmission_control_block: &TransmissionControlBlock<TCBA>, now: MonotonicMillisecondTimestamp)
+	#[inline(always)]
+	fn reserve_space_for_m5_option(options_data_pointer: usize, md5_authentication_key: Option<&Rc<Md5PreSharedSecretKey>>) -> (usize, usize)
+	{
+		if md5_authentication_key.is_some()
+		{
+			previously_reserved_space_options_data_pointer = options_data_pointer;
+			(TcpSegment::reserve_space_for_md5_option(options_data_pointer), previously_reserved_space_options_data_pointer)
+		}
+		else
+		{
+			(options_data_pointer, 0)
+		}
+	}
+	
+	fn send_synchronize(&self, packet: TCBA::Packet, our_tcp_segment: &mut TcpSegment, transmission_control_block: &mut impl SendPacketTransmissionControlBlock<TCBA::Address>, now: MonotonicMillisecondTimestamp)
 	{
 		let remote_internet_protocol_address = transmission_control_block.remote_internet_protocol_address();
 		let explicit_congestion_notification_supported = transmission_control_block.explicit_congestion_notification_supported();
@@ -504,23 +518,11 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		let (end_of_options_data_pointer, previously_reserved_space_options_data_pointer) =
 		{
 			let mut options_data_pointer = start_of_options_data_pointer;
-			let mut previously_reserved_space_options_data_pointer = 0;
-			
 			options_data_pointer = TcpSegment::write_maximum_segment_size_option(transmission_control_block.our_offered_maximum_segment_size_when_initiating_connections());
-			
 			options_data_pointer = TcpSegment::write_window_scale_option(InitialWindowSize::Scale);
-			
 			options_data_pointer = TcpSegment::write_selective_acknowledgment_permitted_option(options_data_pointer);
-			
-			options_data_pointer = TcpSegment::write_timestamps_option(options_data_pointer, transmission_control_block.normal_timestamps_option());
-			
-			if md5_authentication_key.is_some()
-			{
-				previously_reserved_space_options_data_pointer = options_data_pointer;
-				options_data_pointer = TcpSegment::reserve_space_for_md5_option(options_data_pointer)
-			}
-			
-			(options_data_pointer, previously_reserved_space_options_data_pointer)
+			options_data_pointer = transmission_control_block.write_timestamping_option(options_data_pointer, now);
+			Self::reserve_space_for_m5_option(options_data_pointer, md5_authentication_key)
 		};
 		
 		let (padded_options_size, layer_4_packet_size) = TcpSegment::round_up_options_size_to_multiple_of_four_and_set_padding_to_zero(start_of_options_data_pointer, end_of_options_data_pointer);
@@ -540,7 +542,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 				Flags::Synchronize
 			};
 			
-			let ISS = transmission_control_block.SND.UNA();
+			let ISS = transmission_control_block.SND_UNA();
 			our_tcp_segment.set_for_send(transmission_control_block.remote_port_local_port(), ISS, WrappingSequenceNumber::Zero, padded_options_size, flags, InitialWindowSize::Segment);
 			
 			self.check_sum_layering.calculate_in_software_and_set_if_required(our_tcp_segment, layer_4_packet_size, &self.local_internet_protocol_address, transmission_control_block.remote_internet_protocol_address());
@@ -586,13 +588,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 				options_data_pointer = TcpSegment::write_timestamps_option(options_data_pointer, Timestamping::synflood_synchronize_acknowledgment_timestamps_option(their_timestamp.TSval))
 			}
 			
-			if md5_authentication_key.is_some()
-			{
-				previously_reserved_space_options_data_pointer = options_data_pointer;
-				options_data_pointer = TcpSegment::reserve_space_for_md5_option(options_data_pointer)
-			}
-			
-			(options_data_pointer, previously_reserved_space_options_data_pointer)
+			Self::reserve_space_for_m5_option(options_data_pointer, md5_authentication_key)
 		};
 		
 		let (padded_options_size, layer_4_packet_size) = TcpSegment::round_up_options_size_to_multiple_of_four_and_set_padding_to_zero(start_of_options_data_pointer, end_of_options_data_pointer);
@@ -632,14 +628,14 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 	}
 	
 	#[inline(always)]
-	pub(crate) fn send_final_acknowledgment_of_three_way_handshake(&self, packet: TCBA::Packet, transmission_control_block: &mut TransmissionControlBlock<TCBA>, now: MonotonicMillisecondTimestamp, mut flags: Flags, SEQ: WrappingSequenceNumber, ACK: WrappingSequenceNumber)
+	pub(crate) fn send_final_acknowledgment_of_three_way_handshake(&self, packet: TCBA::Packet, transmission_control_block: &mut impl SendPacketTransmissionControlBlock<TCBA::Address>, now: MonotonicMillisecondTimestamp, mut flags: Flags, SEQ: WrappingSequenceNumber, ACK: WrappingSequenceNumber)
 	{
 		transmission_control_block.update_Last_ACK_sent(ACK);
 		self.send_empty(packet, self.reuse_reversing_source_and_destination_addresses_for_tcp_segment(packet), transmission_control_block, now, flags, SEQ, ACK, None);
 	}
 	
 	#[inline(always)]
-	pub(crate) fn send_acknowledgment(&self, packet: TCBA::Packet, transmission_control_block: &mut TransmissionControlBlock<TCBA>, now: MonotonicMillisecondTimestamp, flags: Flags, SEQ: WrappingSequenceNumber, ACK: WrappingSequenceNumber)
+	pub(crate) fn send_acknowledgment(&self, packet: TCBA::Packet, transmission_control_block: &mut impl SendPacketTransmissionControlBlock<TCBA::Address>, now: MonotonicMillisecondTimestamp, flags: Flags, SEQ: WrappingSequenceNumber, ACK: WrappingSequenceNumber)
 	{
 		let flags = transmission_control_block.add_explicit_congestion_echo_flag_to_acknowledgment_if_appropriate(flags);
 		
@@ -656,21 +652,21 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 	///
 	/// A remote should then respond with with either a Acknowledgment or a Reset (if the connection is dead).
 	#[inline(always)]
-	pub(crate) fn send_keep_alive_probe_without_packet_to_reuse(&self, transmission_control_block: &TransmissionControlBlock<TCBA>, now: MonotonicMillisecondTimestamp) -> Result<(), ()>
+	pub(crate) fn send_keep_alive_probe_without_packet_to_reuse(&self, transmission_control_block: &mut impl SendPacketTransmissionControlBlock<TCBA::Address>, now: MonotonicMillisecondTimestamp) -> Result<(), ()>
 	{
 		let (packet, our_tcp_segment) = self.create_for_tcp_segment(transmission_control_block.remote_internet_protocol_address())?;
-		self.send_empty(packet, our_tcp_segment, transmission_control_block, now, Flags::PushAcknowledgment, transmission_control_block.SND.UNA_less_one(), transmission_control_block.RCV.NXT(), None);
+		self.send_empty(packet, our_tcp_segment, transmission_control_block, now, Flags::PushAcknowledgment, transmission_control_block.SND_UNA_less_one(), transmission_control_block.RCV_NXT(), None);
 		Ok(())
 	}
 	
 	#[inline(always)]
-	pub(crate) fn send_challenge_acknowledgment(&self, packet: TCBA::Packet, transmission_control_block: &TransmissionControlBlock<TCBA>, now: MonotonicMillisecondTimestamp)
+	pub(crate) fn send_challenge_acknowledgment(&self, packet: TCBA::Packet, transmission_control_block: &mut impl SendPacketTransmissionControlBlock<TCBA::Address>, now: MonotonicMillisecondTimestamp)
 	{
-		self.send_empty(packet, self.reuse_reversing_source_and_destination_addresses_for_tcp_segment(packet), transmission_control_block, now, Flags::Acknowledgment, transmission_control_block.SND.NXT(), transmission_control_block.RCV.NXT(), None);
+		self.send_empty(packet, self.reuse_reversing_source_and_destination_addresses_for_tcp_segment(packet), transmission_control_block, now, Flags::Acknowledgment, transmission_control_block.SND_NXT(), transmission_control_block.RCV_NXT(), None);
 	}
 	
 	#[inline(always)]
-	pub(crate) fn send_reset_without_packet_to_reuse(&self, transmission_control_block: &TransmissionControlBlock<TCBA>, now: MonotonicMillisecondTimestamp, SEQ: WrappingSequenceNumber) -> Result<(), ()>
+	pub(crate) fn send_reset_without_packet_to_reuse(&self, transmission_control_block: &mut impl SendPacketTransmissionControlBlock<TCBA::Address>, now: MonotonicMillisecondTimestamp, SEQ: WrappingSequenceNumber) -> Result<(), ()>
 	{
 		let (packet, our_tcp_segment) = self.create_for_tcp_segment(transmission_control_block.remote_internet_protocol_address())?;
 		self.send_reset_common(packet, our_tcp_segment, transmission_control_block, now, SEQ);
@@ -678,7 +674,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 	}
 	
 	#[inline(always)]
-	pub(crate) fn send_zero_window_probe(&self, transmission_control_block: &TransmissionControlBlock<TCBA>, now: MonotonicMillisecondTimestamp) -> Result<(), ()>
+	pub(crate) fn send_zero_window_probe(&self, transmission_control_block: &mut impl SendPacketTransmissionControlBlock<TCBA::Address>, now: MonotonicMillisecondTimestamp) -> Result<(), ()>
 	{
 		struct ZeroWindowProbePayloadWriter;
 		
@@ -695,14 +691,14 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 			}
 		}
 		
-		debug_assert!(transmission_control_block.SND.window_is_zero(), "SND.WND is not zero");
+		debug_assert!(transmission_control_block.send_window_is_zero(), "SND.WND is not zero");
 		
 		let (packet, our_tcp_segment) = self.create_for_tcp_segment(transmission_control_block.remote_internet_protocol_address())?;
-		self.send(packet, our_tcp_segment, transmission_control_block, now, Flags::AcknowledgmentPush, transmission_control_block.SND.NXT(), transmission_control_block.RCV.NXT(), None, ZeroWindowProbePayloadWriter);
+		self.send(packet, our_tcp_segment, transmission_control_block, now, Flags::AcknowledgmentPush, transmission_control_block.SND_NXT(), transmission_control_block.RCV_NXT(), None, ZeroWindowProbePayloadWriter);
 		Ok(())
 	}
 	
-	pub(crate) fn send_data(&self, buffer: &[u8], transmission_control_block: &TransmissionControlBlock<TCBA>, now: MonotonicMillisecondTimestamp) -> Result<usize, ()>
+	pub(crate) fn send_data(&self, buffer: &[u8], transmission_control_block: &mut impl SendPacketTransmissionControlBlock<TCBA::Address>, now: MonotonicMillisecondTimestamp) -> Result<usize, ()>
 	{
 		struct DataPayloadWriter(buffer);
 		
@@ -723,30 +719,31 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 			}
 		}
 		
-		debug_assert!(transmission_control_block.SND.window_is_not_zero(), "SND.WND is zero");
+		debug_assert!(transmission_control_block.send_window_is_not_zero(), "SND.WND is zero");
 		
 		let (packet, our_tcp_segment) = self.create_for_tcp_segment(transmission_control_block.remote_internet_protocol_address())?;
-		self.send(packet, our_tcp_segment, transmission_control_block, now, Flags::Acknowledgment, transmission_control_block.SND.NXT(), transmission_control_block.RCV.NXT(), None, DataPayloadWriter(buffer));
+		self.send(packet, our_tcp_segment, transmission_control_block, now, Flags::Acknowledgment, transmission_control_block.SND_NXT(), transmission_control_block.RCV_NXT(), None, DataPayloadWriter(buffer));
 		Ok(XXXX)
 		// TODO: Return how many bytes were put into the segment. Code needs to keep buffer pointer.
 	}
 	
 	#[inline(always)]
-	pub(crate) fn send_reset(&self, packet: TCBA::Packet, transmission_control_block: &TransmissionControlBlock<TCBA>, now: MonotonicMillisecondTimestamp, SEQ: WrappingSequenceNumber)
+	pub(crate) fn send_reset(&self, packet: TCBA::Packet, transmission_control_block: &mut impl SendPacketTransmissionControlBlock<TCBA::Address>, now: MonotonicMillisecondTimestamp, SEQ: WrappingSequenceNumber)
 	{
 		self.send_reset_common(packet, self.reuse_reversing_source_and_destination_addresses_for_tcp_segment(packet), transmission_control_block, now, SEQ)
 	}
 	
 	#[inline(always)]
-	fn send_reset_common(&self, packet: TCBA::Packet, our_tcp_segment: &mut TcpSegment, transmission_control_block: &TransmissionControlBlock<TCBA>, now: MonotonicMillisecondTimestamp, SEQ: WrappingSequenceNumber)
+	fn send_reset_common(&self, packet: TCBA::Packet, our_tcp_segment: &mut TcpSegment, transmission_control_block: &mut impl SendPacketTransmissionControlBlock<TCBA::Address>, now: MonotonicMillisecondTimestamp, SEQ: WrappingSequenceNumber)
 	{
-		debug_assert!(transmission_control_block.is_state_synchronized(), "We do not support sending Reset segments before the state has become Established");
+		// Strictly speaking, it is valid to send a Reset before establishing synchronized state, but it is nearly always a security vulnerability.
+		transmission_control_block.debug_assert_action_is_only_valid_in_synchronized_states();
 		
-		self.send_empty(packet, our_tcp_segment, transmission_control_block, now, Flags::Reset, SEQ, transmission_control_block.RCV.NXT(), None);
+		self.send_empty(packet, our_tcp_segment, transmission_control_block, now, Flags::Reset, SEQ, transmission_control_block.RCV_NXT(), None);
 	}
 	
 	#[inline(always)]
-	fn send_empty(&self, packet: TCBA::Packet, our_tcp_segment: &mut TcpSegment, transmission_control_block: &TransmissionControlBlock<TCBA>, now: MonotonicMillisecondTimestamp, flags: Flags, SEQ: WrappingSequenceNumber, ACK: WrappingSequenceNumber, selective_acknowledgment_block: Option<SelectiveAcknowledgmentBlock>)
+	fn send_empty(&self, packet: TCBA::Packet, our_tcp_segment: &mut TcpSegment, transmission_control_block: &mut impl SendPacketTransmissionControlBlock<TCBA::Address>, now: MonotonicMillisecondTimestamp, flags: Flags, SEQ: WrappingSequenceNumber, ACK: WrappingSequenceNumber, selective_acknowledgment_block: Option<SelectiveAcknowledgmentBlock>)
 	{
 		struct EmptyPayloadWriter;
 		
@@ -762,7 +759,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		self.send(packet, our_tcp_segment, transmission_control_block, now, flags, SEQ, ACK, selective_acknowledgment_block, EmptyPayloadWriter);
 	}
 	
-	fn send(&self, packet: TCBA::Packet, our_tcp_segment: &mut TcpSegment, transmission_control_block: &TransmissionControlBlock<TCBA>, now: MonotonicMillisecondTimestamp, mut flags: Flags, SEQ: WrappingSequenceNumber, ACK: WrappingSequenceNumber, selective_acknowledgment_block: Option<SelectiveAcknowledgmentBlock>, payload_writer: impl PayloadWriter) -> usize
+	fn send(&self, packet: TCBA::Packet, our_tcp_segment: &mut TcpSegment, transmission_control_block: &mut impl SendPacketTransmissionControlBlock<TCBA::Address>, now: MonotonicMillisecondTimestamp, mut flags: Flags, SEQ: WrappingSequenceNumber, ACK: WrappingSequenceNumber, selective_acknowledgment_block: Option<SelectiveAcknowledgmentBlock>, payload_writer: impl PayloadWriter) -> usize
 	{
 		let start_of_options_data_pointer = our_tcp_segment.options_data_pointer();
 		
@@ -772,16 +769,9 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		{
 			let mut options_data_pointer = start_of_options_data_pointer;
 			
-			if let Some(timestamping) = transmission_control_block.timestamping_reference()
-			{
-				options_data_pointer = TcpSegment::write_timestamps_option(options_data_pointer, timestamping.normal_timestamps_option())
-			}
+			options_data_pointer = transmission_control_block.write_timestamping_option(options_data_pointer, now);
 			
-			if md5_authentication_key.is_some()
-			{
-				previously_reserved_space_options_data_pointer = options_data_pointer;
-				options_data_pointer = TcpSegment::reserve_space_for_md5_option(options_data_pointer)
-			}
+			let (mut options_data_pointer, previously_reserved_space_options_data_pointer) = Self::reserve_space_for_m5_option(options_data_pointer, md5_authentication_key);
 			
 			if let Some(selective_acknowledgment_block) = selective_acknowledgment_block
 			{
@@ -793,14 +783,14 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		
 		let padded_options_size = TcpSegment::round_up_options_size_to_multiple_of_four_and_set_padding_to_zero(start_of_options_data_pointer, end_of_options_data_pointer);
 		
-		let SND_NXT_old = transmission_control_block.SND.NXT();
+		let SND_NXT_old = transmission_control_block.SND_NXT();
 		let maximum_payload_size = transmission_control_block.maximum_payload_size_excluding_synchronize_and_finish();
 		let payload_size = payload_writer(unsafe { NonNull::new_unchecked(start_of_options_data_pointer + padded_options_size) }, maximum_payload_size);
-		transmission_control_block.SND.increment_NXT(payload_size as u32);
+		transmission_control_block.increment_SND_NXT(payload_size as u32);
 		
 		let layer_4_packet_size = TcpSegment::layer_4_packet_size(padded_options_size, payload_size);
 		
-		let is_a_zero_window_probe = (payload_size == 1 && transmission_control_block.SND.window_is_zero() && SEQ == SND_NXT_old);
+		let is_a_zero_window_probe = (payload_size == 1 && transmission_control_block.send_window_is_zero() && SEQ == SND_NXT_old);
 		let is_a_retransmission = false; // we'll handle this specially.
 		
 		let is_a_data_payload_and_is_its_first_transmission = payload_size != 0 && !is_a_zero_window_probe && !is_a_retransmission;
@@ -833,10 +823,10 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 			}
 		}
 		
-		let space_available_for_writing_payload = transmission_control_block.maximum_segment_size_to_send_to_remote - packet.internet_protocol_options_or_extension_headers_additional_overhead() - padded_options_size;
+		let space_available_for_writing_payload = transmission_control_block.maximum_segment_payload_size(padded_options_size) - packet.internet_protocol_options_or_extension_headers_additional_overhead();
 		
 		{
-			our_tcp_segment.set_for_send(transmission_control_block.remote_port_local_port(), SEQ, ACK, padded_options_size, flags, transmission_control_block.RCV.segment_window_size());
+			our_tcp_segment.set_for_send(transmission_control_block.remote_port_local_port(), SEQ, ACK, padded_options_size, flags, transmission_control_block.receive_segment_window_size());
 			
 			self.check_sum_layering.calculate_in_software_and_set_if_required(our_tcp_segment, layer_4_packet_size, &self.local_internet_protocol_address, transmission_control_block.remote_internet_protocol_address());
 		}
@@ -873,33 +863,3 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		unsafe { &mut * (pointer_to_tcp_segment.as_ptr() as *mut TcpSegment) }
 	}
 }
-
-
-/*
-
-
-TODO: Method required on TCB in order to pull sending API from interface.
-
-transmission_control_block.our_offered_maximum_segment_size_when_initiating_connections()
-transmission_control_block.normal_timestamps_option()
-transmission_control_block.timestamping_reference()
-transmission_control_block.transmitted(now, ISS, payload_size as u32, flags);
-transmission_control_block.SND.UNA()
-transmission_control_block.SND.UNA_less_one()
-transmission_control_block.RCV.NXT()
-transmission_control_block.update_Last_ACK_sent(ACK);
-transmission_control_block.SND.window_is_not_zero()
-transmission_control_block.SND.window_is_zero()
-transmission_control_block.bytes_sent_in_payload_in_a_segment_which_is_not_a_zero_window_probe_or_retransmission(payload_size)
-transmission_control_block.RCV.segment_window_size()
-
-// To revise
-transmission_control_block.SND.NXT()
-transmission_control_block.maximum_payload_size_excluding_synchronize_and_finish()
-transmission_control_block.SND.increment_NXT(payload_size as u32);
-transmission_control_block.maximum_segment_size_to_send_to_remote - packet.internet_protocol_options_or_extension_headers_additional_overhead() - padded_options_size
-
-// done already
-transmission_control_block.remote_internet_protocol_address()
-transmission_control_block.remote_port_local_port()
-*/

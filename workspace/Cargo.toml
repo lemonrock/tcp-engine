@@ -7,12 +7,8 @@ members = [
     "tcp-engine",
     "tcp-engine-abstractions",
     "tcp-engine-authentication",
-    "tcp-engine-check-sum",
-    "tcp-engine-collections",
     "tcp-engine-internet-protocol",
-    "tcp-engine-network-endian",
     "tcp-engine-ports",
     "tcp-engine-tcp",
     "tcp-engine-tcp-domain",
-    "tcp-engine-time",
 ]

@@ -13,8 +13,8 @@
 
 extern crate arrayvec;
 extern crate md5;
-extern crate tcp_engine_check_sum;
-extern crate tcp_engine_network_endian;
+extern crate network_check_sum;
+extern crate network_endian;
 extern crate tcp_engine_internet_protocol;
 
 

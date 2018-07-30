@@ -22,14 +22,14 @@ dpdk-sys = { version = "0.0.5", optional = true }
 libc = "^0.2"
 likely = "0.1"
 memoffset = "^0.2"
-tcp-engine-check-sum = { path = "../tcp-engine-check-sum", version = "0.0.0" }
-tcp-engine-collections = { path = "../tcp-engine-collections", version = "0.0.0" }
+network-check-sum = "^0.1"
+network-collections = "^0.1"
+network-endian = "^0.1"
+network-time = "^0.1"
 tcp-engine-internet-protocol = { path = "../tcp-engine-internet-protocol", version = "0.0.0" }
-tcp-engine-network-endian = { path = "../tcp-engine-network-endian", version = "0.0.0" }
 tcp-engine-ports = { path = "../tcp-engine-ports", version = "0.0.0" }
 tcp-engine-tcp = { path = "../tcp-engine-tcp", version = "0.0.0" }
 tcp-engine-tcp-domain = { path = "../tcp-engine-tcp-domain", version = "0.0.0" }
-tcp-engine-time = { path = "../tcp-engine-time", version = "0.0.0" }
 
 [features]
 default = ["dpdk-sys", "rfc-8311-permit-explicit-congestion-markers-on-all-packets", "rfc-4821-minimum-ipv4-path-mtu", "increase-ipv4-mss-acceptable-minimum-to-1024", "increase-ipv6-mss-acceptable-minimum-to-1220", "drop-urgent-pointer-field-non-zero", "drop-options-padding-non-zero", "drop-options-known-fixed-length-invalid", "server-drop-source-port-0"]

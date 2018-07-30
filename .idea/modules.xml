@@ -5,14 +5,11 @@
       <module fileurl="file://$PROJECT_DIR$/workspace/tcp-engine/tcp-engine.iml" filepath="$PROJECT_DIR$/workspace/tcp-engine/tcp-engine.iml" />
       <module fileurl="file://$PROJECT_DIR$/workspace/tcp-engine-abstractions/tcp-engine-abstractions.iml" filepath="$PROJECT_DIR$/workspace/tcp-engine-abstractions/tcp-engine-abstractions.iml" />
       <module fileurl="file://$PROJECT_DIR$/workspace/tcp-engine-authentication/tcp-engine-authentication.iml" filepath="$PROJECT_DIR$/workspace/tcp-engine-authentication/tcp-engine-authentication.iml" />
-      <module fileurl="file://$PROJECT_DIR$/workspace/tcp-engine-check-sum/tcp-engine-check-sum.iml" filepath="$PROJECT_DIR$/workspace/tcp-engine-check-sum/tcp-engine-check-sum.iml" />
-      <module fileurl="file://$PROJECT_DIR$/workspace/tcp-engine-collections/tcp-engine-collections.iml" filepath="$PROJECT_DIR$/workspace/tcp-engine-collections/tcp-engine-collections.iml" />
       <module fileurl="file://$PROJECT_DIR$/workspace/tcp-engine-internet-protocol/tcp-engine-internet-protocol.iml" filepath="$PROJECT_DIR$/workspace/tcp-engine-internet-protocol/tcp-engine-internet-protocol.iml" />
       <module fileurl="file://$PROJECT_DIR$/workspace/tcp-engine-network-endian/tcp-engine-network-endian.iml" filepath="$PROJECT_DIR$/workspace/tcp-engine-network-endian/tcp-engine-network-endian.iml" />
       <module fileurl="file://$PROJECT_DIR$/workspace/tcp-engine-ports/tcp-engine-ports.iml" filepath="$PROJECT_DIR$/workspace/tcp-engine-ports/tcp-engine-ports.iml" />
       <module fileurl="file://$PROJECT_DIR$/workspace/tcp-engine-tcp/tcp-engine-tcp.iml" filepath="$PROJECT_DIR$/workspace/tcp-engine-tcp/tcp-engine-tcp.iml" />
       <module fileurl="file://$PROJECT_DIR$/workspace/tcp-engine-tcp-domain/tcp-engine-tcp-domain.iml" filepath="$PROJECT_DIR$/workspace/tcp-engine-tcp-domain/tcp-engine-tcp-domain.iml" />
-      <module fileurl="file://$PROJECT_DIR$/workspace/tcp-engine-time/tcp-engine-time.iml" filepath="$PROJECT_DIR$/workspace/tcp-engine-time/tcp-engine-time.iml" />
     </modules>
   </component>
 </project>

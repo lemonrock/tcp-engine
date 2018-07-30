@@ -16,12 +16,12 @@
 #[macro_use] extern crate bitflags;
 extern crate hyper_thread_random;
 #[macro_use] extern crate likely;
+extern crate network_check_sum;
+extern crate network_endian;
+extern crate network_time;
 extern crate tcp_engine_authentication;
-extern crate tcp_engine_check_sum;
 extern crate tcp_engine_internet_protocol;
-extern crate tcp_engine_network_endian;
 extern crate tcp_engine_ports;
-extern crate tcp_engine_time;
 
 
 use self::tcp_options::*;

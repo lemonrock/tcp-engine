@@ -11,10 +11,10 @@
 //!
 
 extern crate hyper_thread_random;
-extern crate tcp_engine_collections;
+extern crate network_collections;
+extern crate network_endian;
+extern crate network_time;
 extern crate tcp_engine_internet_protocol;
-extern crate tcp_engine_network_endian;
-extern crate tcp_engine_time;
 
 
 use ::hyper_thread_random::generate_hyper_thread_safe_random_u16;

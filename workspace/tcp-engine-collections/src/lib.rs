@@ -16,8 +16,7 @@
 
 extern crate dpdk_unix;
 extern crate libc;
-//extern crate num_traits;
-#[macro_use] extern crate tcp_engine_likely;
+#[macro_use] extern crate likely;
 extern crate tcp_engine_time;
 
 

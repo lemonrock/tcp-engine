@@ -19,11 +19,11 @@
 
 #[cfg(feature = "dpdk-sys")] extern crate dpdk_sys;
 extern crate libc;
+#[macro_use] extern crate likely;
 #[macro_use] extern crate memoffset;
 extern crate tcp_engine_check_sum;
 extern crate tcp_engine_collections;
 extern crate tcp_engine_internet_protocol;
-#[macro_use] extern crate tcp_engine_likely;
 extern crate tcp_engine_network_endian;
 extern crate tcp_engine_ports;
 extern crate tcp_engine_tcp_domain;

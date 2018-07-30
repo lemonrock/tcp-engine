@@ -18,4 +18,4 @@ publish = false
 version = "0.0.0"
 
 [dependencies]
-tcp-engine-likely = { path = "../tcp-engine-likely", version = "0.0.0" }
+likely = "0.1"

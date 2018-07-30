@@ -10,7 +10,6 @@ members = [
     "tcp-engine-check-sum",
     "tcp-engine-collections",
     "tcp-engine-internet-protocol",
-    "tcp-engine-likely",
     "tcp-engine-network-endian",
     "tcp-engine-ports",
     "tcp-engine-tcp",

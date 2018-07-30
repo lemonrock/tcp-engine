@@ -13,7 +13,7 @@
 //!
 
 
-#[macro_use] extern crate tcp_engine_likely;
+#[macro_use] extern crate likely;
 
 
 use ::std::error;

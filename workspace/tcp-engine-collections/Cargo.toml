@@ -20,6 +20,5 @@ version = "0.0.0"
 [dependencies]
 dpdk-unix = "0.0.5"
 libc = "^0.2"
-num-traits = "^0.2"
-tcp-engine-likely = { path = "../tcp-engine-likely", version = "0.0.0" }
+likely = "0.1"
 tcp-engine-time = { path = "../tcp-engine-time", version = "0.0.0" }

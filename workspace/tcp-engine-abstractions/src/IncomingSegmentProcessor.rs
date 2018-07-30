@@ -7,7 +7,7 @@
 pub struct IncomingSegmentProcessor
 {
 	// TODO: Not a device-level property but a property of the packet; some packets will not have a checksum for various reasons, eg LRO.
-	check_sum_layering: CheckSumLayering,
+	validate_check_sum_in_software: bool,
 }
 
 impl IncomingSegmentProcessor
@@ -162,7 +162,7 @@ impl IncomingSegmentProcessor
 		
 		let source_internet_protocol_address = packet.source_internet_protocol_address();
 		
-		if unlikely!(self.check_sum_layering.is_tcp_check_sum_invalid(SEG, layer_4_packet_size, source_internet_protocol_address, interface.local_internet_protocol_address()))
+		if unlikely!(self.is_tcp_check_sum_invalid(SEG, layer_4_packet_size, source_internet_protocol_address, interface.local_internet_protocol_address()))
 		{
 			drop!(self, packet, "TCP check sum is invalid")
 		}
@@ -229,6 +229,24 @@ impl IncomingSegmentProcessor
 		if cfg!(debug_assertions)
 		{
 			eprintln!("Dropped packet '{}'", explanation)
+		}
+	}
+	
+	/// `source_internet_protocol_address` and `destination_internet_protocol_address` are from the point of view of the fields in the Internet Protocol version 4 header or the Internet Protocol version 6 header.
+	#[inline(always)]
+	fn is_tcp_check_sum_invalid<Address: InternetProtocolAddress>(self, SEG: &TcpSegment, layer_4_packet_size: usize, source_internet_protocol_address: &Address, destination_internet_protocol_address: &Address) -> bool
+	{
+		if self.validate_check_sum_in_software
+		{
+			let internet_packet_payload_pointer = unsafe { NonNull::new_unchecked(SEG as *const TcpSegment as *const u8 as *mut u8) };
+			
+			let check_sum = Address::calculate_internet_protocol_tcp_check_sum(source_internet_protocol_address, destination_internet_protocol_address, internet_packet_payload_pointer, layer_4_packet_size);
+			
+			!check_sum.validates()
+		}
+		else
+		{
+			false
 		}
 	}
 }

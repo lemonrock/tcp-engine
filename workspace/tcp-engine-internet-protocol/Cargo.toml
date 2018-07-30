@@ -18,6 +18,6 @@ publish = false
 version = "0.0.0"
 
 [dependencies]
+likely = "0.1"
 tcp-engine-check-sum = { path = "../tcp-engine-check-sum", version = "0.0.0" }
-tcp-engine-likely = { path = "../tcp-engine-likely", version = "0.0.0" }
 tcp-engine-network-endian = { path = "../tcp-engine-network-endian", version = "0.0.0" }

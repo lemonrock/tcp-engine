@@ -12,8 +12,8 @@
 //!
 
 
+#[macro_use] extern crate likely;
 extern crate tcp_engine_check_sum;
-#[macro_use] extern crate tcp_engine_likely;
 extern crate tcp_engine_network_endian;
 
 

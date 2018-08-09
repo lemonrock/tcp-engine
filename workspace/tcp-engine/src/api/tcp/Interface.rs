@@ -7,7 +7,7 @@ pub struct Interface<TCBA: TransmissionControlBlockAbstractions>
 {
 	transmission_control_block_abstractions: TCBA,
 	maximum_segment_size_table: MaximumSegmentSizeTable<TCBA::Address, TCBA::PMTUTable>,
-	incoming_segment_processor: v,
+	incoming_segment_processor: IncomingSegmentProcessor,
 	listening_server_port_combination_validity: PortCombinationValidity,
 	local_internet_protocol_address: TCBA::Address,
 	transmission_control_blocks: TransmissionControlBlocks<TCBA, TransmissionControlBlock<TCBA>>,
@@ -53,6 +53,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 		self.alarms.progress(self)
 	}
 	
+	// TODO: If there are multiple Interface 'clones', one per RSS thread, then we will need to apply the RSS hash algorithm to correctly choose which Interface to create an outbound connection on.
 	#[inline(always)]
 	pub fn new_outbound_connection(&self, remote_internet_protocol_address: TCBA::Address, remote_port: NetworkEndianU16, now: MonotonicMillisecondTimestamp, explicit_congestion_notification_supported: bool, connection_time_out: MillisecondDuration) -> Result<(), ()>
 	{
@@ -75,7 +76,7 @@ impl<TCBA: TransmissionControlBlockAbstractions> Interface<TCBA>
 	/// This logic DOES NOT validate:-
 	///
 	/// * that source and destination addreses are permitted, eg are not multicast (this is the responsibility of lower layers);
-	/// * that the source and destination addresses (and ports) are not the same.
+	/// * that the source and destination addresses are not the same.
 	///
 	/// `layer_4_packet_size` is NOT the same as the IPv6 payload size; in this case, it is the IPv6 payload size LESS the extensions headers size.
 	#[inline(always)]

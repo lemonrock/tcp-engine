@@ -195,7 +195,7 @@ impl InternetProtocolAddress for NetworkEndianU32
 	#[inline(always)]
 	fn calculate_internet_protocol_tcp_check_sum(source_internet_protocol_address: &Self, destination_internet_protocol_address: &Self, internet_packet_payload_pointer: NonNull<u8>, layer_4_packet_size: usize) -> Rfc1141CompliantCheckSum
 	{
-		Rfc1141CompliantCheckSum::internet_protocol_version_4_tcp_check_sum(source_internet_protocol_address, destination_internet_protocol_address, internet_packet_payload_pointer, layer_4_packet_size)
+		InternetProtocolVersion4PseudoHeader::internet_protocol_version_4_tcp_check_sum(source_internet_protocol_address, destination_internet_protocol_address, internet_packet_payload_pointer, layer_4_packet_size)
 	}
 	
 	#[inline(always)]
@@ -260,7 +260,7 @@ impl InternetProtocolAddress for NetworkEndianU128
 	#[inline(always)]
 	fn calculate_internet_protocol_tcp_check_sum(source_internet_protocol_address: &Self, destination_internet_protocol_address: &Self, internet_packet_payload_pointer: NonNull<u8>, layer_4_packet_size: usize) -> Rfc1141CompliantCheckSum
 	{
-		Rfc1141CompliantCheckSum::internet_protocol_version_6_tcp_check_sum(source_internet_protocol_address, destination_internet_protocol_address, internet_packet_payload_pointer, layer_4_packet_size)
+		InternetProtocolVersion6PseudoHeader::internet_protocol_version_6_tcp_check_sum(source_internet_protocol_address, destination_internet_protocol_address, internet_packet_payload_pointer, layer_4_packet_size)
 	}
 	
 	#[inline(always)]

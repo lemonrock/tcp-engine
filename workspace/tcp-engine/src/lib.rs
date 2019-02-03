@@ -18,6 +18,7 @@
 
 
 #[cfg(feature = "dpdk-sys")] extern crate dpdk_sys;
+extern crate hashbrown;
 extern crate libc;
 #[macro_use] extern crate likely;
 #[macro_use] extern crate memoffset;
@@ -44,6 +45,7 @@ pub mod tcp;
 
 use ::arrayvec::ArrayVec;
 use ::dpdk_unix::page_size;
+use ::hashbrown::HashMap;
 use ::hyper_thread_random::generate_hyper_thread_safe_random_u16;
 use ::hyper_thread_random::generate_hyper_thread_safe_random_u32;
 use ::hyper_thread_random::generate_hyper_thread_safe_random_u64;
@@ -70,7 +72,6 @@ use ::std::cell::Ref;
 use ::std::cell::RefCell;
 use ::std::cell::RefMut;
 use ::std::collections::BTreeMap;
-use ::std::collections::HashMap;
 use ::std::cmp::Eq;
 use ::std::cmp::max;
 use ::std::cmp::min;

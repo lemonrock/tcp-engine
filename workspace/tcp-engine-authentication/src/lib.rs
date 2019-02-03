@@ -12,6 +12,7 @@
 
 
 extern crate arrayvec;
+extern crate hashbrown;
 extern crate md5;
 extern crate network_check_sum;
 extern crate network_endian;
@@ -19,8 +20,8 @@ extern crate tcp_engine_internet_protocol;
 
 
 use ::arrayvec::ArrayVec;
+use ::hashbrown::HashMap;
 use ::md5::Md5;
-use ::std::collections::HashMap;
 use ::std::ptr::NonNull;
 use ::std::rc::Rc;
 pub use ::tcp_engine_check_sum::Digest;

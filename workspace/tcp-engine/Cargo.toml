@@ -19,6 +19,7 @@ version = "0.0.0"
 
 [dependencies]
 dpdk-sys = { version = "0.0.5", optional = true }
+hashbrown = { version = "^0.1", features = ["nightly"] }
 libc = "^0.2"
 likely = "0.1"
 memoffset = "^0.2"

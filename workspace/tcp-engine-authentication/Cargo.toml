@@ -19,6 +19,7 @@ version = "0.0.0"
 
 [dependencies]
 arrayvec = "0.4"
+hashbrown = { version = "^0.1", features = ["nightly"] }
 md-5 = "^0.7"
 network-check-sum = "^0.1"
 network-endian = "^0.1"
